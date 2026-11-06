@@ -317,9 +317,18 @@ function inicializarEventos() {
     if (archivo) manejarArchivoImagen(archivo);
   });
 
-  // API key de Gemini guardada localmente
-  const apiGuardada = localStorage.getItem(CLAVE_API_STORAGE);
-  if (apiGuardada) $('input-api-key').value = apiGuardada;
+  // API key de Gemini guardada localmente o provista por archivo local ignorado en git
+  const apiGuardada = localStorage.getItem(CLAVE_API_STORAGE) || window.SMARTFURNITURE_DEFAULT_API_KEY || '';
+  if (apiGuardada) {
+    $('input-api-key').value = apiGuardada;
+  } else {
+    fetch('./js/ia/clave_local.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.apiKey && !$('input-api-key').value) $('input-api-key').value = d.apiKey;
+      })
+      .catch(() => {});
+  }
   $('btn-analizar-ia').addEventListener('click', ejecutarAnalisisGemini);
 
   // Cambios de tipo y medidas

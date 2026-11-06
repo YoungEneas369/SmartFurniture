@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.log
+js/ia/clave_local.json
+
+

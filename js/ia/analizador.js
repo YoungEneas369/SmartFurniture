@@ -62,19 +62,22 @@ Identifica:
 Devuelve únicamente el objeto JSON según el esquema.`;
 
 const MODELOS_PREFERIDOS = [
+  'gemini-flash-latest',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
 ];
 
 async function elegirModeloDisponible(apiKey) {
   try {
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`);
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, {
+      headers: { 'X-goog-api-key': apiKey },
+    });
     if (!r.ok) return MODELOS_PREFERIDOS[0];
     const data = await r.json();
     const nombres = (data.models || [])
       .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
       .map((m) => m.name.replace(/^models\//, ''));
+    if (nombres.includes('gemini-flash-latest')) return 'gemini-flash-latest';
     const flash = nombres.find((n) => n.includes('flash') && !n.includes('8b') && !n.includes('tts'));
     return flash || nombres[0] || MODELOS_PREFERIDOS[0];
   } catch {
@@ -89,7 +92,7 @@ async function elegirModeloDisponible(apiKey) {
  */
 export async function analizarConGemini(imagen, apiKey) {
   const modelo = await elegirModeloDisponible(apiKey);
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
   const body = {
     contents: [
       {
@@ -108,7 +111,10 @@ export async function analizarConGemini(imagen, apiKey) {
 
   const resp = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-goog-api-key': apiKey,
+    },
     body: JSON.stringify(body),
   });
   if (!resp.ok) {
