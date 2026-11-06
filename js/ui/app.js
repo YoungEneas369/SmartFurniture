@@ -10,10 +10,10 @@
  *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
  *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=14';
-import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=14';
-import { calcularProyecto } from '../core/sistema.js?v=14';
-import { tapacantoPorFila } from '../core/calculos.js?v=14';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=15';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=15';
+import { calcularProyecto } from '../core/sistema.js?v=15';
+import { tapacantoPorFila } from '../core/calculos.js?v=15';
 import {
   analizarConGemini,
   analizarImagenLocal,
@@ -21,10 +21,10 @@ import {
   prepararImagenParaIA,
   extraerRasgosVisuales,
   CROQUIS_EJEMPLO,
-} from '../ia/analizador.js?v=14';
-import { mapaColoresPorFila } from './colores.js?v=14';
-import { renderizarPlanosCorte } from './planoCorte.js?v=14';
-import { Visor3D } from './visor3d.js?v=14';
+} from '../ia/analizador.js?v=15';
+import { mapaColoresPorFila } from './colores.js?v=15';
+import { renderizarPlanosCorte } from './planoCorte.js?v=15';
+import { Visor3D } from './visor3d.js?v=15';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 
@@ -40,6 +40,12 @@ const estado = {
   imagenBase64: null,
   imagenMime: null,
   rasgosVisuales: null,
+  tieneMedidasEscritas: false,
+  textoMedidasLeidas: '',
+  datosConfirmadosUsuario: false,
+  imgOriginalDataUrl: null,
+  imgMargenesDataUrl: null,
+  mostrandoMargenes: false,
   visor: null,
   ultimoResultado: null,
 };
@@ -101,6 +107,86 @@ function resumenSeccionesTexto(secciones) {
     return `Nivel ${i + 1}: ${nom}`;
   });
   return etiquetas.join(' → ');
+}
+
+function renderizarPanelDatosFaltantes() {
+  const panel = $('panel-datos-faltantes');
+  if (!panel) return;
+
+  const w0 = $('input-base-ancho')?.value || 500;
+  const h0 = $('input-base-alto')?.value || 600;
+  const d0 = $('input-base-prof')?.value || 430;
+
+  const bw = $('badge-estado-w0');
+  const bh = $('badge-estado-h0');
+  const bd = $('badge-estado-d0');
+
+  if (estado.datosConfirmadosUsuario) {
+    if (bw) { bw.className = 'badge-dato badge-confirmado'; bw.textContent = '✓ Confirmado'; }
+    if (bh) { bh.className = 'badge-dato badge-confirmado'; bh.textContent = '✓ Confirmado'; }
+    if (bd) { bd.className = 'badge-dato badge-confirmado'; bd.textContent = '✓ Confirmado'; }
+
+    panel.innerHTML = `
+      <div class="caja-aviso-confirmado">
+        ✅ <strong>Datos confirmados para cálculo exacto:</strong>
+        Medidas base fijadas en <strong>${w0} × ${h0} × ${d0} mm</strong>. El despiece y el plano de corte reflejan tus dimensiones exactas.
+      </div>
+    `;
+    return;
+  }
+
+  if (!estado.tieneMedidasEscritas) {
+    if (bw) { bw.className = 'badge-dato badge-estimado'; bw.textContent = 'Estimado IA'; }
+    if (bh) { bh.className = 'badge-dato badge-estimado'; bh.textContent = 'Estimado IA'; }
+    if (bd) { bd.className = 'badge-dato badge-estimado'; bd.textContent = 'Estimado IA'; }
+
+    panel.innerHTML = `
+      <div class="caja-aviso-estimacion">
+        <div style="font-weight:700;color:#fbbf24;margin-bottom:4px">
+          ⚠️ Faltan datos de medidas en la foto —Ingresa las medidas reales o se usará una estimación de la IA
+        </div>
+        <p style="margin:4px 0">
+          La imagen subida <strong>no tiene medidas escritas</strong>. Para que el despiece sea exacto, ingresa abajo los <strong>datos que faltan</strong>:
+          <strong>Ancho W₀, Alto H₀ y Profundidad D₀ (en mm)</strong>.
+        </p>
+        <p style="margin:6px 0 8px;padding:6px 8px;background:rgba(0,0,0,0.25);border-radius:6px;color:#fde68a">
+          📌 <strong>Aviso importante:</strong> Si no agregas las medidas reales, <strong>el resultado NO será exacto y la IA realizará una estimación aproximada</strong> (actualmente <strong>${w0} × ${h0} × ${d0} mm</strong> según la proporción visual de la foto).
+        </p>
+        <button type="button" id="btn-confirmar-medidas" class="btn-secundario" style="font-size:0.8rem;padding:5px 12px;border-color:#fbbf24;color:#fef3c7">
+          ✅ Confirmar estas medidas (${w0} × ${h0} × ${d0} mm) como exactas
+        </button>
+      </div>
+    `;
+  } else {
+    const numCotas = (estado.textoMedidasLeidas.match(/\d+/g) || []).length;
+    if (bw) { bw.className = 'badge-dato badge-leido'; bw.textContent = 'Leído croquis'; }
+    if (bh) { bh.className = 'badge-dato badge-leido'; bh.textContent = 'Leído croquis'; }
+    if (bd) {
+      bd.className = numCotas >= 3 ? 'badge-dato badge-leido' : 'badge-dato badge-estimado';
+      bd.textContent = numCotas >= 3 ? 'Leído croquis' : 'Estimado IA';
+    }
+
+    panel.innerHTML = `
+      <div class="caja-aviso-estimacion">
+        <div style="font-weight:700;color:#38bdf8;margin-bottom:4px">
+          📐 Cotas detectadas en la imagen (${estado.textoMedidasLeidas || `${w0}×${h0}×${d0} mm`}) — Verifica datos faltantes
+        </div>
+        <p style="margin:4px 0">
+          Se leyeron medidas del plano, pero cualquier dato técnico que no aparezca escrito en la imagen (como profundidad, altura de patas o fondo trasero) <strong>es estimado por la IA</strong>.
+          <strong>Si no completas o confirmas los datos faltantes abajo, el cálculo no será 100% exacto y usará la estimación de la IA.</strong>
+        </p>
+        <button type="button" id="btn-confirmar-medidas" class="btn-secundario" style="margin-top:4px;font-size:0.8rem;padding:5px 12px">
+          ✅ Confirmar medidas (${w0} × ${h0} × ${d0} mm) como exactas
+        </button>
+      </div>
+    `;
+  }
+
+  $('btn-confirmar-medidas')?.addEventListener('click', () => {
+    estado.datosConfirmadosUsuario = true;
+    renderizarPanelDatosFaltantes();
+    renderizarCajaResultadoIA();
+  });
 }
 
 function renderizarCajaResultadoIA() {
@@ -186,6 +272,14 @@ function renderizarCajaResultadoIA() {
       ✅ <strong>Descompuesto en ${numPiezas} piezas</strong> (${$('input-base-ancho').value}×${$('input-base-alto').value}×${$('input-base-prof').value} mm)
       ${tot ? `· <strong>${tot.planchas} plancha(s)</strong> · ${tot.aprovechamiento.toFixed(1)}% aprovechamiento` : ''}
     </div>
+    ${
+      !estado.datosConfirmadosUsuario
+        ? `<div style="margin-top:8px;padding:8px 10px;background:rgba(245,158,11,0.14);border:1px solid #f59e0b;border-radius:8px;color:#fef3c7;font-size:0.81rem">
+            ⚠️ <strong>${estado.tieneMedidasEscritas ? 'Verifica los datos complementarios en el Paso 2:' : 'Faltan medidas reales en la foto:'}</strong>
+            Si no ingresas los datos faltantes en el <strong>Paso 2</strong> (Ancho, Alto, Profundidad), <strong>el cálculo no será exacto y la IA realizará una estimación aproximada</strong>.
+          </div>`
+        : ''
+    }
     ${editorHtml}
   `;
 
@@ -262,6 +356,9 @@ function aplicarResultadoIA(res) {
   estado.tieneFondo = norm.tieneFondo !== false;
   estado.relacionFoto = norm.relacionAnchoAlto || null;
   estado.fuenteImagen = norm.fuente || 'Imagen';
+  estado.tieneMedidasEscritas = Boolean(norm.tieneMedidasEscritas);
+  estado.textoMedidasLeidas = norm.textoMedidasLeidas || '';
+  estado.datosConfirmadosUsuario = false;
 
   if (norm.anchoDetectadoMm) $('input-base-ancho').value = norm.anchoDetectadoMm;
   if (norm.altoDetectadoMm) $('input-base-alto').value = norm.altoDetectadoMm;
@@ -269,6 +366,7 @@ function aplicarResultadoIA(res) {
 
   $('slider-escala-k').value = '1.00';
   aplicarFactorEscalaGeneral(1.0);
+  renderizarPanelDatosFaltantes();
   renderizarCajaResultadoIA();
 }
 
@@ -282,6 +380,7 @@ function seleccionarCroquisEjemplo(id) {
   $('vista-previa-contenedor').hidden = false;
   $('vista-previa-img').hidden = true;
   $('vista-previa-img').removeAttribute('src');
+  if ($('barra-herramientas-img')) $('barra-herramientas-img').hidden = true;
   if ($('input-archivo')) $('input-archivo').value = '';
   $('vista-previa-svg').innerHTML = item.svg;
   $('vista-previa-svg').hidden = false;
@@ -306,12 +405,23 @@ async function manejarArchivoImagen(archivo) {
       $('vista-previa-svg').hidden = true;
       img.hidden = false;
 
-      // Preprocesar imagen en Canvas (fondo blanco + compresión óptima) y extraer silueta 2D
+      if (img.dataset.modoMargenes === '1') return;
+      estado.imgOriginalDataUrl = dataUrl;
+      estado.mostrandoMargenes = false;
+
+      // Preprocesar imagen en Canvas (realce de márgenes Sobel + fondo limpio) y extraer silueta 2D
       estado.rasgosVisuales = extraerRasgosVisuales(img);
       const optimizada = prepararImagenParaIA(img);
       if (optimizada) {
         estado.imagenBase64 = optimizada.base64;
         estado.imagenMime = optimizada.mimeType;
+        estado.imgMargenesDataUrl = optimizada.mapaBordesDataUrl || optimizada.realzadaDataUrl || null;
+      }
+      if ($('barra-herramientas-img')) {
+        $('barra-herramientas-img').hidden = !estado.imgMargenesDataUrl;
+      }
+      if ($('btn-toggle-margenes')) {
+        $('btn-toggle-margenes').textContent = '✏️ Recalcar márgenes / Simplificar bordes';
       }
 
       const local = analizarImagenLocal(img, archivo.name);
@@ -517,10 +627,25 @@ function inicializarEventos() {
     }
   });
 
+  $('btn-toggle-margenes')?.addEventListener('click', () => {
+    const img = $('vista-previa-img');
+    if (!img || !estado.imgMargenesDataUrl || !estado.imgOriginalDataUrl) return;
+    estado.mostrandoMargenes = !estado.mostrandoMargenes;
+    img.dataset.modoMargenes = '1';
+    img.src = estado.mostrandoMargenes ? estado.imgMargenesDataUrl : estado.imgOriginalDataUrl;
+    $('btn-toggle-margenes').textContent = estado.mostrandoMargenes
+      ? '📷 Ver foto original'
+      : '✏️ Recalcar márgenes / Simplificar bordes';
+    setTimeout(() => { delete img.dataset.modoMargenes; }, 60);
+  });
+
   ['input-base-ancho', 'input-base-alto', 'input-base-prof'].forEach((id) => {
     $(id).addEventListener('input', () => {
+      estado.datosConfirmadosUsuario = true;
       const k = Number($('slider-escala-k').value) || 1;
       aplicarFactorEscalaGeneral(k);
+      renderizarPanelDatosFaltantes();
+      renderizarCajaResultadoIA();
     });
   });
 

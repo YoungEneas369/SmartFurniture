@@ -272,6 +272,60 @@ export function prepararImagenParaIA(imgElement, maxLado = 1280) {
       // Continuar con imagen base si falla manipulación de píxeles
     }
 
+    let mapaBordesDataUrl = null;
+    try {
+      const cBordes = document.createElement('canvas');
+      cBordes.width = w;
+      cBordes.height = h;
+      const ctxB = cBordes.getContext('2d');
+      if (ctxB) {
+        const imgOrig = ctx.getImageData(0, 0, w, h);
+        const sData = imgOrig.data;
+        const outImg = ctxB.createImageData(w, h);
+        const oData = outImg.data;
+        const lumB = (x, y) => {
+          const i = (y * w + x) * 4;
+          return 0.299 * sData[i] + 0.587 * sData[i + 1] + 0.114 * sData[i + 2];
+        };
+        for (let i = 0; i < oData.length; i += 4) {
+          oData[i] = 248;
+          oData[i + 1] = 250;
+          oData[i + 2] = 252;
+          oData[i + 3] = 255;
+        }
+        for (let y = 1; y < h - 1; y++) {
+          for (let x = 1; x < w - 1; x++) {
+            const gx =
+              -lumB(x - 1, y - 1) + lumB(x + 1, y - 1) -
+              2 * lumB(x - 1, y) + 2 * lumB(x + 1, y) -
+              lumB(x - 1, y + 1) + lumB(x + 1, y + 1);
+            const gy =
+              -lumB(x - 1, y - 1) - 2 * lumB(x, y - 1) - lumB(x + 1, y - 1) +
+              lumB(x - 1, y + 1) + 2 * lumB(x, y + 1) + lumB(x + 1, y + 1);
+            const mag = Math.hypot(gx, gy);
+            const i = (y * w + x) * 4;
+            if (mag > 36) {
+              const v = Math.max(12, 245 - Math.min(233, Math.round(mag * 1.15)));
+              oData[i] = Math.round(v * 0.85);
+              oData[i + 1] = Math.round(v * 0.92);
+              oData[i + 2] = v;
+            } else {
+              // Mantener sombreado suave simplificado
+              const l = lumB(x, y);
+              const q = l > 210 ? 250 : l > 150 ? 236 : 220;
+              oData[i] = q;
+              oData[i + 1] = q + 2;
+              oData[i + 2] = q + 4;
+            }
+          }
+        }
+        ctxB.putImageData(outImg, 0, 0);
+        mapaBordesDataUrl = cBordes.toDataURL('image/jpeg', 0.88);
+      }
+    } catch {
+      mapaBordesDataUrl = null;
+    }
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
     const coma = dataUrl.indexOf(',');
     return {
@@ -279,6 +333,8 @@ export function prepararImagenParaIA(imgElement, maxLado = 1280) {
       mimeType: 'image/jpeg',
       ancho: wOrig,
       alto: hOrig,
+      realzadaDataUrl: dataUrl,
+      mapaBordesDataUrl,
     };
   } catch {
     return null;
