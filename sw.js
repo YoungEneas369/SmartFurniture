@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfurniture-v3';
+const CACHE_NAME = 'smartfurniture-v12';
 const RECURSOS = [
   './',
   './index.html',

@@ -6,11 +6,11 @@
  * La interfaz solo llama a `calcularProyecto` y muestra lo que devuelve, así la
  * lógica se puede probar por separado (ver carpeta tests/).
  */
-import { generarMueble } from './plantillas.js';
-import { matrizDespiece, piezasParaCorte } from './despiece.js';
-import { optimizarCorte } from './corte.js';
-import { resumen } from './calculos.js';
-import { compararForma } from './escala.js';
+import { generarMueble } from './plantillas.js?v=12';
+import { matrizDespiece, piezasParaCorte } from './despiece.js?v=12';
+import { optimizarCorte } from './corte.js?v=12';
+import { resumen } from './calculos.js?v=12';
+import { compararForma } from './escala.js?v=12';
 
 export function calcularProyecto(tipo, params, { relacionFoto = null } = {}) {
   const mueble = generarMueble(tipo, params);

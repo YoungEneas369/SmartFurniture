@@ -1,15 +1,12 @@
 /**
  * Optimización de corte 2D (Cutting Stock / Bin Packing bidimensional).
  *
- * Objetivo: usar el menor número de planchas posible.
- * Restricción: las piezas no se superponen, caben en la plancha y se respeta
- * el ancho de la sierra (kerf).
- *
- * Encontrar la solución óptima es un problema NP-difícil, por eso se usa una
- * heurística de cortes en guillotina (los cortes van de lado a lado, igual que
- * en una dimensionadora). Se prueban varias combinaciones de orden y criterio
- * y se elige la que use menos planchas. El resultado es bueno, pero no se
- * garantiza que sea el óptimo.
+ * Inspirado en los algoritmos de referencia open-source en GitHub:
+ *   - Jukka Jylänki, "A Thousand Ways to Pack the Bin" (GuillotineBinPack:
+ *     criterios BAF, BSSF, BLSF + reglas de partición SAS, LAS, SLAS, LLAS, MAXAS
+ *     + desfragmentación por fusión de rectángulos libres adyacentes).
+ *   - OpenCutList (respeto estricto de cortes de guillotina de lado a lado y
+ *     espesor de sierra / kerf = 3 mm).
  */
 import { PLANCHA, KERF } from './constantes.js';
 
@@ -17,20 +14,91 @@ const ORDENES = {
   area: (a, b) => b.largo * b.ancho - a.largo * a.ancho,
   ladoMayor: (a, b) => Math.max(b.largo, b.ancho) - Math.max(a.largo, a.ancho),
   perimetro: (a, b) => b.largo + b.ancho - (a.largo + a.ancho),
+  ladoMenor: (a, b) => Math.min(b.largo, b.ancho) - Math.min(a.largo, a.ancho),
 };
 
 const CRITERIOS = {
-  // Elige el espacio libre que deja menos área sobrante.
+  // BAF (Best Area Fit): elige el espacio libre que deja menos área sobrante.
   mejorArea: (libre, w, h) => libre.w * libre.h - w * h,
-  // Elige el espacio libre donde la pieza calza más justo por su lado corto.
+  // BSSF (Best Short Side Fit): calza más justo por el lado corto sobrante.
   ladoCorto: (libre, w, h) => Math.min(libre.w - w, libre.h - h),
+  // BLSF (Best Long Side Fit): calza más justo por el lado largo sobrante.
+  ladoLargo: (libre, w, h) => Math.max(libre.w - w, libre.h - h),
 };
 
-function empaquetar(piezas, { L, A, kerf, rotar, orden, criterio }) {
+/**
+ * Reglas de partición en guillotina (Jylänki):
+ * Devuelven `true` si el corte principal se hace horizontal (creando un rectángulo
+ * abajo de ancho completo `libre.w`) o `false` si se hace vertical (creando un
+ * rectángulo a la derecha de alto completo `libre.h`).
+ */
+const REGLAS_DIVISION = {
+  // SLAS: Shorter Leftover Axis Split
+  ejeSobranteCorto: (libre, wk, hk, sobraW, sobraH) => sobraW <= sobraH,
+  // LLAS: Longer Leftover Axis Split
+  ejeSobranteLargo: (libre, wk, hk, sobraW, sobraH) => sobraW > sobraH,
+  // SAS: Shorter Axis Split
+  ejeCorto: (libre) => libre.w <= libre.h,
+  // MAXAS: Maximizar el rectángulo sobrante continuo más grande
+  maxAreaContinua: (libre, wk, hk, sobraW, sobraH) => {
+    const maxHoriz = Math.max(sobraW * hk, libre.w * sobraH);
+    const maxVert = Math.max(sobraW * libre.h, wk * sobraH);
+    return maxHoriz >= maxVert;
+  },
+};
+
+/**
+ * Fusiona rectángulos libres colineales y adyacentes en la misma plancha
+ * (Guillotine Free Rectangle Merge) para recuperar espacio fragmentado.
+ */
+function fusionarRectangulosLibres(libres) {
+  let huboFusion = true;
+  while (huboFusion) {
+    huboFusion = false;
+    for (let i = 0; i < libres.length && !huboFusion; i++) {
+      for (let j = i + 1; j < libres.length; j++) {
+        const a = libres[i];
+        const b = libres[j];
+        if (a.x === b.x && a.w === b.w) {
+          if (a.y + a.h === b.y) {
+            a.h += b.h;
+            libres.splice(j, 1);
+            huboFusion = true;
+            break;
+          }
+          if (b.y + b.h === a.y) {
+            a.y = b.y;
+            a.h += b.h;
+            libres.splice(j, 1);
+            huboFusion = true;
+            break;
+          }
+        } else if (a.y === b.y && a.h === b.h) {
+          if (a.x + a.w === b.x) {
+            a.w += b.w;
+            libres.splice(j, 1);
+            huboFusion = true;
+            break;
+          }
+          if (b.x + b.w === a.x) {
+            a.x = b.x;
+            a.w += b.w;
+            libres.splice(j, 1);
+            huboFusion = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+}
+
+function empaquetar(piezas, { L, A, kerf, rotar, orden, criterio, division }) {
   const lista = [...piezas].sort(ORDENES[orden]);
   const planchas = [];
   const noCaben = [];
   const puntaje = CRITERIOS[criterio];
+  const reglaCortarHorizontal = REGLAS_DIVISION[division];
 
   const nuevaPlancha = () => {
     // Se agrega un kerf a la plancha y a cada pieza: así entre piezas queda
@@ -77,12 +145,13 @@ function empaquetar(piezas, { L, A, kerf, rotar, orden, criterio }) {
     const hk = pos.ph + kerf;
     const sobraW = libre.w - wk;
     const sobraH = libre.h - hk;
-    const cortarHorizontal = sobraW <= sobraH; // regla del eje sobrante más corto
+    const cortarHorizontal = reglaCortarHorizontal(libre, wk, hk, sobraW, sobraH);
     const derecha = { x: libre.x + wk, y: libre.y, w: sobraW, h: cortarHorizontal ? hk : libre.h };
     const abajo = { x: libre.x, y: libre.y + hk, w: cortarHorizontal ? libre.w : wk, h: sobraH };
     plancha.libres.splice(pos.il, 1);
     if (derecha.w > kerf && derecha.h > kerf) plancha.libres.push(derecha);
     if (abajo.w > kerf && abajo.h > kerf) plancha.libres.push(abajo);
+    fusionarRectangulosLibres(plancha.libres);
   }
 
   return {
@@ -103,13 +172,15 @@ export function optimizarCorte(piezas, { L = PLANCHA.largo, A = PLANCHA.ancho, k
   let mejor = null;
   for (const orden of Object.keys(ORDENES)) {
     for (const criterio of Object.keys(CRITERIOS)) {
-      const r = empaquetar(piezas, { L, A, kerf, rotar, orden, criterio });
-      const n = r.planchas.length;
-      // Desempate: preferir la que deja la última plancha más vacía
-      // (el sobrante queda concentrado y es más reutilizable).
-      const ultima = n ? r.planchas[n - 1].areaUsada : 0;
-      if (!mejor || n < mejor.n || (n === mejor.n && ultima < mejor.ultima)) {
-        mejor = { n, ultima, r, heuristica: `${orden} + ${criterio}` };
+      for (const division of Object.keys(REGLAS_DIVISION)) {
+        const r = empaquetar(piezas, { L, A, kerf, rotar, orden, criterio, division });
+        const n = r.planchas.length;
+        // Desempate: preferir menor número de planchas y, a igual número de planchas,
+        // la que deja la última plancha con más área libre continua reutilizable.
+        const ultima = n ? r.planchas[n - 1].areaUsada : 0;
+        if (!mejor || n < mejor.n || (n === mejor.n && ultima < mejor.ultima)) {
+          mejor = { n, ultima, r, heuristica: `${orden} + ${criterio} + ${division}` };
+        }
       }
     }
   }

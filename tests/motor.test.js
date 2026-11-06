@@ -210,3 +210,6 @@ test('calcularProyecto: flujo completo y advertencia por forma distinta a la fot
   assert.ok(r.advertencias.some((a) => a.includes('foto')));
   assert.ok(r.advertencias.some((a) => a.includes('curvarse')));
 });
+
+await import('./ui.test.js');
+

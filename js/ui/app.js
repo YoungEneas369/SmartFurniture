@@ -1,91 +1,275 @@
 /**
  * Controlador principal de la interfaz de SmartFurniture.
+ *
+ * Flujo lineal:
+ *   1. Cargar foto o croquis → Preprocesamiento Canvas 2D + Gemini Vision IA
+ *      reconoce las secciones del mueble (repisas abiertas, cajones, puertas,
+ *      divisiones verticales y patas) y sus medidas base.
+ *   2. Medidas base (W₀, H₀, D₀) → descomposición en piezas y matriz M.
+ *   3. Escalar con el dedo en 3D mediante el factor k (f(x) = k·x) → actualiza
+ *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
+ *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA } from '../core/constantes.js';
-import { parsearProporciones } from '../core/escala.js';
-import { calcularProyecto } from '../core/sistema.js';
-import { tapacantoPorFila } from '../core/calculos.js';
-import { analizarConGemini, analizarImagenLocal, CROQUIS_EJEMPLO } from '../ia/analizador.js';
-import { mapaColoresPorFila } from './colores.js';
-import { renderizarPlanosCorte } from './planoCorte.js';
-import { Visor3D } from './visor3d.js';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=12';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=12';
+import { calcularProyecto } from '../core/sistema.js?v=12';
+import { tapacantoPorFila } from '../core/calculos.js?v=12';
+import {
+  analizarConGemini,
+  analizarImagenLocal,
+  normalizarResultadoIA,
+  prepararImagenParaIA,
+  extraerRasgosVisuales,
+  CROQUIS_EJEMPLO,
+} from '../ia/analizador.js?v=12';
+import { mapaColoresPorFila } from './colores.js?v=12';
+import { renderizarPlanosCorte } from './planoCorte.js?v=12';
+import { Visor3D } from './visor3d.js?v=12';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 
 const estado = {
   relacionFoto: null,
   fuenteImagen: null,
+  nombreMueble: 'Mueble',
+  descripcionIA: '',
+  subtipo: 'estandar',
+  secciones: null,
+  alturaPatasBase: 0,
+  tieneFondo: true,
   imagenBase64: null,
   imagenMime: null,
+  rasgosVisuales: null,
   visor: null,
   ultimoResultado: null,
 };
 
 const $ = (id) => document.getElementById(id);
 
-function formatearM2(mm2) {
-  return (mm2 / 1e6).toFixed(2);
+const formatearM2 = (mm2) => (mm2 / 1e6).toFixed(2);
+const formatearMetros = (mm) => (mm / 1000).toFixed(2);
+
+function limitar(val, [min, max]) {
+  return Math.max(min, Math.min(max, Math.round(val)));
 }
 
-function formatearMetros(mm) {
-  return (mm / 1000).toFixed(2);
+function aplicarFactorEscalaGeneral(k) {
+  const w0 = Number($('input-base-ancho').value) || 500;
+  const h0 = Number($('input-base-alto').value) || 600;
+  const d0 = Number($('input-base-prof').value) || 430;
+
+  $('input-ancho').value = limitar(escalar(w0, k), LIMITES.ancho);
+  $('input-alto').value = limitar(escalar(h0, k), LIMITES.alto);
+  $('input-profundidad').value = limitar(escalar(d0, k), LIMITES.profundidad);
+  $('etiqueta-factor-k').textContent = `k = ${Number(k).toFixed(2)}× (${Math.round(k * 100)}%)`;
+  recalcular();
 }
 
-function actualizarVisibilidadCamposTipo() {
-  const tipo = $('select-tipo').value;
-  $('grupo-repisas').hidden = tipo === 'cajonera';
-  $('grupo-puertas').hidden = tipo !== 'mueble_puertas';
-  $('grupo-cajones').hidden = tipo !== 'cajonera';
+function actualizarFormulaEscalaVivo() {
+  const w0 = Number($('input-base-ancho').value) || 500;
+  const h0 = Number($('input-base-alto').value) || 600;
+  const d0 = Number($('input-base-prof').value) || 430;
+  const W = Number($('input-ancho').value) || w0;
+  const H = Number($('input-alto').value) || h0;
+  const D = Number($('input-profundidad').value) || d0;
 
-  const nEspacios = tipo === 'cajonera'
-    ? Number($('input-cajones').value) || 3
-    : (Number($('input-repisas').value) || 0) + 1;
-  $('ayuda-proporciones').textContent = tipo === 'cajonera'
-    ? `${nEspacios} valores (de abajo hacia arriba, uno por frente de cajón). Vacío = todos iguales.`
-    : `${nEspacios} valores (de abajo hacia arriba, uno por espacio entre repisas). Vacío = partes iguales.`;
+  const kw = factorEscala(W, w0);
+  const kh = factorEscala(H, h0);
+  const kd = factorEscala(D, d0);
+
+  $('tag-kw').textContent = `k_w=${kw.toFixed(2)}`;
+  $('tag-kh').textContent = `k_h=${kh.toFixed(2)}`;
+  $('tag-kd').textContent = `k_d=${kd.toFixed(2)}`;
+
+  $('formula-escala-vivo').textContent =
+    `Función de escalamiento f(x) = k · x  (espesor melamina e = 18 mm fijo):\n` +
+    `  • Ancho W       = ${w0} mm × ${kw.toFixed(2)} = ${W} mm   (piezas horizontales: W − 2e = ${W - 36} mm)\n` +
+    `  • Alto H        = ${h0} mm × ${kh.toFixed(2)} = ${H} mm\n` +
+    `  • Profundidad D = ${d0} mm × ${kd.toFixed(2)} = ${D} mm`;
 }
 
-function ajustarCantidadProporcionesSegunDivisiones() {
-  const texto = $('input-proporciones').value.trim();
-  if (!texto) return;
-  const tipo = $('select-tipo').value;
-  const esperado = tipo === 'cajonera'
-    ? Number($('input-cajones').value) || 1
-    : (Number($('input-repisas').value) || 0) + 1;
-  const actual = parsearProporciones(texto);
-  if (actual.length === esperado) return;
-  const ajustado = Array.from({ length: esperado }, (_, i) => actual[i] ?? 1);
-  $('input-proporciones').value = ajustado.join(', ');
+function resumenSeccionesTexto(secciones) {
+  if (!Array.isArray(secciones) || !secciones.length) return '';
+  const etiquetas = secciones.map((s, i) => {
+    const nom = s.tipoSeccion === 'cajon'
+      ? `${s.columnas} cajón(es)`
+      : s.tipoSeccion === 'puertas'
+        ? `${s.columnas} puerta(s)`
+        : s.tipoSeccion === 'mixto_hueco_puertas'
+          ? `hueco + ${Math.max(1, s.columnas - 1)} puerta(s)`
+          : s.columnas > 1 ? `${s.columnas} huecos` : 'repisa abierta';
+    return `Nivel ${i + 1}: ${nom}`;
+  });
+  return etiquetas.join(' → ');
+}
+
+function renderizarCajaResultadoIA() {
+  const caja = $('resultado-ia');
+  if (!caja) return;
+  caja.hidden = false;
+
+  const tot = estado.ultimoResultado?.totales;
+  const numPiezas = estado.ultimoResultado?.despiece?.piezas?.length || 0;
+  const NivelesTxt = estado.secciones
+    ? `<div style="margin-top:6px;font-size:0.83rem;color:#93c5fd">📐 <strong>Niveles (abajo → arriba):</strong> ${resumenSeccionesTexto(estado.secciones)}</div>`
+    : '';
+
+  // Editor rápido de niveles (mostrado de arriba hacia abajo como se ve el mueble)
+  let editorHtml = '';
+  if (Array.isArray(estado.secciones) && estado.secciones.length) {
+    const filasEditor = [...estado.secciones]
+      .map((sec, idxReal) => ({ sec, idxReal }))
+      .reverse()
+      .map(({ sec, idxReal }, posVisual, arr) => {
+        const etq = posVisual === 0
+          ? 'Superior'
+          : posVisual === arr.length - 1
+            ? 'Inferior'
+            : `Medio ${arr.length - posVisual}`;
+        return `
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap;font-size:0.8rem">
+            <span style="min-width:68px;color:#cbd5e1;font-weight:600">${etq}:</span>
+            <select data-idx="${idxReal}" class="sel-sec-tipo" style="padding:4px 6px;border-radius:6px;background:#0f172a;color:#f1f5f9;border:1px solid #26354d">
+              <option value="hueco" ${sec.tipoSeccion === 'hueco' ? 'selected' : ''}>Repisa abierta</option>
+              <option value="cajon" ${sec.tipoSeccion === 'cajon' ? 'selected' : ''}>Cajón(es)</option>
+              <option value="puertas" ${sec.tipoSeccion === 'puertas' ? 'selected' : ''}>Puerta(s)</option>
+              <option value="mixto_hueco_puertas" ${sec.tipoSeccion === 'mixto_hueco_puertas' ? 'selected' : ''}>Hueco + Puerta(s)</option>
+            </select>
+            <select data-idx="${idxReal}" class="sel-sec-cols" style="padding:4px 6px;border-radius:6px;background:#0f172a;color:#f1f5f9;border:1px solid #26354d">
+              <option value="1" ${sec.columnas === 1 ? 'selected' : ''}>1 en fila</option>
+              <option value="2" ${sec.columnas === 2 ? 'selected' : ''}>2 en fila</option>
+              <option value="3" ${sec.columnas === 3 ? 'selected' : ''}>3 en fila</option>
+              <option value="4" ${sec.columnas === 4 ? 'selected' : ''}>4 en fila</option>
+            </select>
+            ${arr.length > 1 ? `<button type="button" data-idx="${idxReal}" class="btn-quitar-sec btn-secundario" style="padding:2px 8px;font-size:0.75rem">✕</button>` : ''}
+          </div>
+        `;
+      })
+      .join('');
+
+    editorHtml = `
+      <details style="margin-top:8px;font-size:0.82rem">
+        <summary style="cursor:pointer;color:#38bdf8;font-weight:600">
+          🛠️ Corregir o personalizar niveles detectados (opcional)
+        </summary>
+        <div style="margin-top:8px;padding:8px;background:#0b1120;border:1px solid #26354d;border-radius:8px">
+          ${filasEditor}
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+            <button type="button" id="btn-add-sec-arriba" class="btn-secundario" style="padding:4px 10px;font-size:0.78rem">
+              + Nivel arriba
+            </button>
+            <button type="button" id="btn-add-sec-abajo" class="btn-secundario" style="padding:4px 10px;font-size:0.78rem">
+              + Nivel abajo
+            </button>
+            <label style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;color:#cbd5e1">
+              <input type="checkbox" id="chk-sec-patas" ${estado.alturaPatasBase > 0 ? 'checked' : ''}>
+              Con patas (${estado.alturaPatasBase || 110} mm)
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:4px;font-size:0.78rem;color:#cbd5e1">
+              <input type="checkbox" id="chk-sec-fondo" ${estado.tieneFondo ? 'checked' : ''}>
+              Con fondo 3 mm
+            </label>
+          </div>
+        </div>
+      </details>
+    `;
+  }
+
+  caja.innerHTML = `
+    <div class="ia-cabecera">
+      <span class="badge-ia">${estado.fuenteImagen}</span>
+      <strong>${estado.nombreMueble}</strong>
+    </div>
+    <p style="margin:6px 0">${estado.descripcionIA}</p>
+    ${NivelesTxt}
+    <div style="margin-top:8px;padding:8px 10px;background:#05966922;border:1px solid #34d399;border-radius:8px;color:#ecfdf5">
+      ✅ <strong>Descompuesto en ${numPiezas} piezas</strong> (${$('input-base-ancho').value}×${$('input-base-alto').value}×${$('input-base-prof').value} mm)
+      ${tot ? `· <strong>${tot.planchas} plancha(s)</strong> · ${tot.aprovechamiento.toFixed(1)}% aprovechamiento` : ''}
+    </div>
+    ${editorHtml}
+  `;
+
+  // Eventos del editor rápido de secciones
+  caja.querySelectorAll('.sel-sec-tipo').forEach((sel) => {
+    sel.addEventListener('change', (ev) => {
+      const idx = Number(ev.target.dataset.idx);
+      if (estado.secciones?.[idx]) {
+        estado.secciones[idx].tipoSeccion = ev.target.value;
+        recalcular();
+        renderizarCajaResultadoIA();
+      }
+    });
+  });
+  caja.querySelectorAll('.sel-sec-cols').forEach((sel) => {
+    sel.addEventListener('change', (ev) => {
+      const idx = Number(ev.target.dataset.idx);
+      if (estado.secciones?.[idx]) {
+        estado.secciones[idx].columnas = Number(ev.target.value) || 1;
+        recalcular();
+        renderizarCajaResultadoIA();
+      }
+    });
+  });
+  caja.querySelectorAll('.btn-quitar-sec').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      const idx = Number(ev.currentTarget.dataset.idx);
+      if (estado.secciones && estado.secciones.length > 1) {
+        estado.secciones.splice(idx, 1);
+        recalcular();
+        renderizarCajaResultadoIA();
+      }
+    });
+  });
+  $('btn-add-sec-arriba')?.addEventListener('click', () => {
+    if (estado.secciones && estado.secciones.length < 8) {
+      estado.secciones.push({ tipoSeccion: 'cajon', columnas: 1, proporcionAlto: 1 });
+      recalcular();
+      renderizarCajaResultadoIA();
+    }
+  });
+  $('btn-add-sec-abajo')?.addEventListener('click', () => {
+    if (estado.secciones && estado.secciones.length < 8) {
+      estado.secciones.unshift({ tipoSeccion: 'hueco', columnas: 1, proporcionAlto: 1 });
+      recalcular();
+      renderizarCajaResultadoIA();
+    }
+  });
+  $('chk-sec-patas')?.addEventListener('change', (ev) => {
+    estado.alturaPatasBase = ev.target.checked ? 110 : 0;
+    recalcular();
+    renderizarCajaResultadoIA();
+  });
+  $('chk-sec-fondo')?.addEventListener('change', (ev) => {
+    estado.tieneFondo = ev.target.checked;
+    recalcular();
+    renderizarCajaResultadoIA();
+  });
 }
 
 function aplicarResultadoIA(res) {
-  $('select-tipo').value = res.tipo;
-  $('input-repisas').value = res.repisas;
-  $('input-puertas').value = res.puertas;
-  $('input-cajones').value = res.cajones;
-  $('input-proporciones').value = (res.proporciones || []).join(', ');
-  if (res.anchoDetectadoMm) $('input-ancho').value = res.anchoDetectadoMm;
-  if (res.altoDetectadoMm) $('input-alto').value = res.altoDetectadoMm;
-  if (res.profundidadDetectadaMm) $('input-profundidad').value = res.profundidadDetectadaMm;
-  estado.relacionFoto = res.relacionAnchoAlto || null;
-  estado.fuenteImagen = res.fuente || 'Imagen';
+  const norm = normalizarResultadoIA(res, res.fuente || 'IA', estado.rasgosVisuales);
+  $('select-tipo').value = norm.tipo;
+  $('input-repisas').value = norm.repisas;
+  $('input-puertas').value = norm.puertas;
+  $('input-cajones').value = norm.cajones;
+  $('input-proporciones').value = (norm.proporciones || []).join(', ');
 
-  const cotasTxt = res.anchoDetectadoMm || res.altoDetectadoMm || res.profundidadDetectadaMm
-    ? `<div style="margin-top:6px;color:#38bdf8;font-weight:600">📏 Medidas cargadas desde el croquis: ${$('input-ancho').value} × ${$('input-alto').value} × ${$('input-profundidad').value} mm (puedes cambiarlas abajo para escalar a otro espacio)</div>`
-    : '';
+  estado.nombreMueble = norm.nombreMueble || 'Mueble reconocido';
+  estado.descripcionIA = norm.descripcion || '';
+  estado.subtipo = norm.subtipo || 'estandar';
+  estado.secciones = norm.secciones ? norm.secciones.map((s) => ({ ...s })) : null;
+  estado.alturaPatasBase = norm.alturaPatasMm || 0;
+  estado.tieneFondo = norm.tieneFondo !== false;
+  estado.relacionFoto = norm.relacionAnchoAlto || null;
+  estado.fuenteImagen = norm.fuente || 'Imagen';
 
-  const caja = $('resultado-ia');
-  caja.hidden = false;
-  caja.innerHTML = `
-    <div class="ia-cabecera">
-      <span class="badge-ia">${res.fuente}</span>
-      <span>Tipo: <strong>${res.tipo === 'cajonera' ? `Cajonera (${res.cajones} cajones)` : res.tipo === 'mueble_puertas' ? `Mueble con ${res.puertas} puertas` : `Librero (${res.repisas} repisas)`}</strong></span>
-    </div>
-    <p style="margin:6px 0 0">${res.descripcion}</p>
-    ${cotasTxt}
-  `;
-  actualizarVisibilidadCamposTipo();
-  recalcular();
+  if (norm.anchoDetectadoMm) $('input-base-ancho').value = norm.anchoDetectadoMm;
+  if (norm.altoDetectadoMm) $('input-base-alto').value = norm.altoDetectadoMm;
+  if (norm.profundidadDetectadaMm) $('input-base-prof').value = norm.profundidadDetectadaMm;
+
+  $('slider-escala-k').value = '1.00';
+  aplicarFactorEscalaGeneral(1.0);
+  renderizarCajaResultadoIA();
 }
 
 function seleccionarCroquisEjemplo(id) {
@@ -94,11 +278,13 @@ function seleccionarCroquisEjemplo(id) {
   document.querySelectorAll('.btn-croquis').forEach((b) => {
     b.classList.toggle('activo', b.dataset.croquis === id);
   });
+  estado.rasgosVisuales = null;
   $('vista-previa-contenedor').hidden = false;
-  $('vista-previa-svg').innerHTML = item.svg;
   $('vista-previa-img').hidden = true;
+  $('vista-previa-img').removeAttribute('src');
+  if ($('input-archivo')) $('input-archivo').value = '';
+  $('vista-previa-svg').innerHTML = item.svg;
   $('vista-previa-svg').hidden = false;
-  $('btn-analizar-ia').hidden = true;
   aplicarResultadoIA(item.resultado);
 }
 
@@ -116,14 +302,25 @@ async function manejarArchivoImagen(archivo) {
     const img = $('vista-previa-img');
     img.onload = () => {
       $('vista-previa-contenedor').hidden = false;
+      $('vista-previa-svg').innerHTML = '';
       $('vista-previa-svg').hidden = true;
       img.hidden = false;
-      $('btn-analizar-ia').hidden = false;
-      // Ejecuta análisis geométrico inmediato y si hay API key permite o lanza Gemini
-      const local = analizarImagenLocal(img);
+
+      // Preprocesar imagen en Canvas (fondo blanco + compresión óptima) y extraer silueta 2D
+      estado.rasgosVisuales = extraerRasgosVisuales(img);
+      const optimizada = prepararImagenParaIA(img);
+      if (optimizada) {
+        estado.imagenBase64 = optimizada.base64;
+        estado.imagenMime = optimizada.mimeType;
+      }
+
+      const local = analizarImagenLocal(img, archivo.name);
       aplicarResultadoIA(local);
+      estado.visor.reiniciarCamara();
+
+      const esReconocidoExacto = local.fuente && !local.fuente.includes('Pre-análisis');
       const apiKey = $('input-api-key').value.trim();
-      if (apiKey) ejecutarAnalisisGemini();
+      if (apiKey && !esReconocidoExacto) ejecutarAnalisisGemini();
     };
     img.src = dataUrl;
   };
@@ -132,30 +329,25 @@ async function manejarArchivoImagen(archivo) {
 
 async function ejecutarAnalisisGemini() {
   const apiKey = $('input-api-key').value.trim();
-  if (!apiKey) {
-    $('detalles-api').open = true;
-    $('input-api-key').focus();
-    return;
-  }
-  if (!estado.imagenBase64) return;
-  const btn = $('btn-analizar-ia');
-  const txtOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Analizando imagen con Gemini...';
+  if (!apiKey || !estado.imagenBase64) return;
+  const caja = $('resultado-ia');
+  caja.hidden = false;
+  caja.innerHTML = `<div class="badge-ia">⏳ Analizando foto/croquis con Gemini IA y descomponiendo secciones...</div>`;
   try {
     localStorage.setItem(CLAVE_API_STORAGE, apiKey);
     const res = await analizarConGemini(
       { base64: estado.imagenBase64, mimeType: estado.imagenMime },
       apiKey,
+      estado.rasgosVisuales,
     );
     aplicarResultadoIA(res);
+    estado.visor.reiniciarCamara();
   } catch (err) {
-    const caja = $('resultado-ia');
-    caja.hidden = false;
-    caja.innerHTML = `<p class="alerta-error">No se pudo consultar Gemini API: ${err.message}. Se mantiene la estimación local.</p>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = txtOriginal;
+    renderizarCajaResultadoIA();
+    caja.insertAdjacentHTML(
+      'beforeend',
+      `<p class="alerta-aviso" style="margin-top:8px">Aviso Gemini API: ${err.message}. Se mantiene el reconocimiento geométrico local.</p>`,
+    );
   }
 }
 
@@ -172,21 +364,18 @@ function renderizarTablaDespiece(despiece) {
         <td><span class="etiqueta-pieza" style="background:${color}22;border-color:${color};color:${color}">${f.id}</span></td>
         <td><strong>${f.nombre}</strong><br><small class="texto-suave">${f.material}</small></td>
         <td class="num">${f.cant}</td>
-        <td class="num">${f.largo} × ${f.ancho}</td>
-        <td class="num">${f.espesor}</td>
-        <td class="num">${formatearM2(f.cant * f.largo * f.ancho)} m²</td>
+        <td class="num"><strong>${f.largo} × ${f.ancho} mm</strong></td>
+        <td class="num">${f.espesor} mm</td>
         <td>${detalleTc}</td>
       </tr>`;
   }).join('');
   $('tbody-despiece').innerHTML = filasHtml;
 
-  // Representación explícita de la matriz M
   const filasMatriz = despiece.M
     .map((fila, i) => `  [${fila.map((n) => String(n).padStart(4, ' ')).join(', ')}]  ← ${despiece.filas[i].id}: ${despiece.filas[i].nombre}`)
     .join('\n');
-  $('bloque-matriz-m').textContent = `M (filas = tipos de pieza, columnas = [Cant, Largo, Ancho, Espesor en mm]):\n[\n${filasMatriz}\n]`;
+  $('bloque-matriz-m').textContent = `Matriz de despiece M (filas = componentes, columnas = [Cantidad, Largo, Ancho, Espesor en mm]):\n[\n${filasMatriz}\n]`;
 
-  // Tabla de vectores posición 3D
   const filasVectores = despiece.piezas.map((p, idx) => `
     <tr>
       <td>${idx + 1}</td>
@@ -201,55 +390,29 @@ function renderizarExplicacionMatematica(resultado) {
   const { mueble, despiece, totales } = resultado;
   const { ancho: W, alto: H, profundidad: D } = mueble.params;
   const interior = W - 2 * ESPESOR;
-  const det = mueble.detalle;
-
-  let bloqueEscala = '';
-  if (det.espacios) {
-    const fracs = det.fracciones.map((f) => f.toFixed(3)).join(', ');
-    const espMm = det.espacios.map((h) => `${h.toFixed(1)} mm`).join(', ');
-    bloqueEscala = `
-      <li><strong>Altura libre interior:</strong> <code>H_libre = H − (n + 2)·e = ${H} − (${mueble.params.repisas} + 2)·${ESPESOR} = ${det.hLibre} mm</code></li>
-      <li><strong>Fracciones normalizadas (suman 1):</strong> <code>f = [${fracs}]</code></li>
-      <li><strong>Escalamiento lineal <code>g(fᵢ) = H_libre · fᵢ</code>:</strong> alturas de cada espacio = <code>[${espMm}]</code></li>`;
-  } else if (det.altos) {
-    const fracs = det.fracciones.map((f) => f.toFixed(3)).join(', ');
-    const altosMm = det.altos.map((h) => `${h} mm`).join(', ');
-    bloqueEscala = `
-      <li><strong>Altura disponible para frentes:</strong> <code>H_frentes = ${det.altoTotal} mm</code></li>
-      <li><strong>Fracciones normalizadas:</strong> <code>f = [${fracs}]</code></li>
-      <li><strong>Escalamiento lineal <code>g(fᵢ) = H_frentes · fᵢ</code>:</strong> alto de cada frente = <code>[${altosMm}]</code></li>`;
-  }
 
   $('contenedor-matematicas').innerHTML = `
     <div class="grid-matematicas">
       <article class="card-mate">
-        <h4>1. Funciones afines vs. lineales</h4>
-        <p>El espesor de la melamina (<code>e = ${ESPESOR} mm</code>) es constante y <strong>no se escala</strong>. Por eso el largo de base, techo y repisas es una <strong>función afín</strong> del ancho total:</p>
+        <h4>1. Función de Escalamiento y Función Afín</h4>
+        <p>Al escalar el mueble con el factor <code>k</code>, las medidas exteriores cambian con <code>g(x) = k · x</code>, pero el espesor <code>e = ${ESPESOR} mm</code> permanece constante:</p>
         <pre class="formula">f(W) = W − 2·e = ${W} − 2·${ESPESOR} = ${interior} mm</pre>
-        <ul>${bloqueEscala}</ul>
       </article>
 
       <article class="card-mate">
-        <h4>2. Matriz de despiece M y Vectores 3D</h4>
-        <p>El mueble tiene <strong>${despiece.piezas.length} piezas</strong> agrupadas en una matriz <code>M</code> de <strong>${despiece.M.length} × 4</strong>. Cada pieza <em>i</em> se ubica en el espacio mediante su vector posición y su vector tamaño:</p>
-        <pre class="formula">p⃗ᵢ = (xᵢ, yᵢ, zᵢ) ∈ ℝ³   ;   t⃗ᵢ = (Δxᵢ, Δyᵢ, Δzᵢ) ∈ ℝ³</pre>
-        <p class="texto-suave">Restricción geométrica verificada: ninguna pieza sale de <code>[0, ${W}] × [0, ${H}] × [0, ${D}]</code> ni intersecta a otra.</p>
+        <h4>2. Matriz M y Vectores en ℝ³</h4>
+        <p>El mueble se descompone en <strong>${despiece.piezas.length} piezas</strong> agrupadas en <strong>${despiece.M.length} filas</strong> de la matriz <code>M</code>. Cada pieza se posiciona en el visor 3D con:</p>
+        <pre class="formula">p⃗ᵢ = (xᵢ, yᵢ, zᵢ) ∈ [0, ${W}] × [0, ${H}] × [0, ${D}]</pre>
       </article>
 
       <article class="card-mate">
-        <h4>3. Sumatorias de área y tapacanto</h4>
-        <p>Área útil de melamina de 18 mm:</p>
-        <pre class="formula">A_útil = Σ (cantᵢ · largoᵢ · anchoᵢ) = ${totales.areaUtil.toLocaleString('es-CL')} mm² (${formatearM2(totales.areaUtil)} m²)</pre>
-        <p>Tapacanto (solo bordes visibles de cada pieza):</p>
-        <pre class="formula">L_tapacanto = Σ cantᵢ · (nLᵢ·largoᵢ + nAᵢ·anchoᵢ) = ${totales.tapacanto.toLocaleString('es-CL')} mm (${formatearMetros(totales.tapacanto)} m)</pre>
+        <h4>3. Sumatorias (Área y Tapacanto)</h4>
+        <pre class="formula">A_útil = Σ (cantᵢ · Lᵢ · Aᵢ) = ${formatearM2(totales.areaUtil)} m²\nTapacanto = ${formatearMetros(totales.tapacanto)} m</pre>
       </article>
 
       <article class="card-mate">
-        <h4>4. Optimización de corte (Cutting Stock 2D)</h4>
-        <p>Cada plancha mide <code>${PLANCHA.largo} × ${PLANCHA.ancho} mm</code> (<code>${formatearM2(totales.areaPlancha)} m²</code>). La cota inferior teórica es:</p>
-        <pre class="formula">N_mín = ⌈ A_útil / A_plancha ⌉ = ⌈ ${formatearM2(totales.areaUtil)} / ${formatearM2(totales.areaPlancha)} ⌉ = ${totales.cotaInferior} plancha(s)</pre>
-        <p>La heurística de corte en guillotina (descontando <code>3 mm</code> de sierra) ubicó todas las piezas en <strong>${totales.planchas} plancha(s)</strong>:</p>
-        <pre class="formula">Aprovechamiento = ${totales.aprovechamiento.toFixed(1)}%   |   Desperdicio = ${totales.desperdicio.toFixed(1)}%</pre>
+        <h4>4. Optimización en Plancha 2440×1220 mm</h4>
+        <pre class="formula">N_mín = ⌈A_útil / A_plancha⌉ = ${totales.cotaInferior}  →  Usadas: ${totales.planchas}\nAprovechamiento: ${totales.aprovechamiento.toFixed(1)}%  |  Desperdicio: ${totales.desperdicio.toFixed(1)}%</pre>
       </article>
     </div>
   `;
@@ -261,23 +424,32 @@ function recalcular() {
   cajaError.hidden = true;
   cajaAvisos.hidden = true;
 
+  actualizarFormulaEscalaVivo();
+
   try {
-    const tipo = $('select-tipo').value;
+    const tipo = estado.secciones ? 'modular' : $('select-tipo').value;
+    const h0 = Number($('input-base-alto').value) || 600;
+    const H = Number($('input-alto').value) || h0;
+    const kh = factorEscala(H, h0);
+
     const proporciones = parsearProporciones($('input-proporciones').value);
     const params = {
       ancho: Number($('input-ancho').value),
-      alto: Number($('input-alto').value),
+      alto: H,
       profundidad: Number($('input-profundidad').value),
       repisas: Number($('input-repisas').value),
       puertas: Number($('input-puertas').value),
       cajones: Number($('input-cajones').value),
       proporciones,
+      subtipo: estado.subtipo || 'estandar',
+      secciones: estado.secciones,
+      alturaPatasMm: Math.round(estado.alturaPatasBase * kh),
+      tieneFondo: estado.tieneFondo,
     };
 
     const resultado = calcularProyecto(tipo, params, { relacionFoto: estado.relacionFoto });
     estado.ultimoResultado = resultado;
 
-    // Indicadores principales
     $('kpi-planchas').textContent = String(resultado.totales.planchas);
     $('kpi-planchas-sub').textContent = `Mínimo teórico: ${resultado.totales.cotaInferior} · Plancha 2440×1220`;
     $('kpi-aprovechamiento').textContent = `${resultado.totales.aprovechamiento.toFixed(1)}%`;
@@ -287,15 +459,13 @@ function recalcular() {
     $('kpi-area').textContent = `${formatearM2(resultado.totales.areaUtil)} m²`;
     $('kpi-area-sub').textContent = `Fondo 3 mm: ${formatearM2(resultado.totales.areaFondo)} m²`;
 
-    // Advertencias y supuestos
     if (resultado.advertencias.length) {
       cajaAvisos.hidden = false;
       cajaAvisos.innerHTML = resultado.advertencias.map((a) => `<div>⚠️ ${a}</div>`).join('');
     }
     $('lista-supuestos').innerHTML = resultado.mueble.supuestos.map((s) => `<li>${s}</li>`).join('');
 
-    // Visor 3D, planos de corte, matriz y matemáticas
-    estado.visor.actualizar(resultado.mueble, resultado.despiece);
+    estado.visor.actualizar(resultado.mueble, resultado.despiece, false);
     renderizarPlanosCorte($('contenedor-planos'), resultado.corte, resultado.despiece.filas);
     renderizarTablaDespiece(resultado.despiece);
     renderizarExplicacionMatematica(resultado);
@@ -306,7 +476,6 @@ function recalcular() {
 }
 
 function inicializarEventos() {
-  // Botones de croquis de ejemplo
   const contCroquis = $('botones-croquis');
   contCroquis.innerHTML = CROQUIS_EJEMPLO.map((c) => `
     <button type="button" class="btn-croquis" data-croquis="${c.id}">
@@ -316,16 +485,17 @@ function inicializarEventos() {
   `).join('');
   contCroquis.addEventListener('click', (ev) => {
     const btn = ev.target.closest('.btn-croquis');
-    if (btn) seleccionarCroquisEjemplo(btn.dataset.croquis);
+    if (btn) {
+      seleccionarCroquisEjemplo(btn.dataset.croquis);
+      estado.visor.reiniciarCamara();
+    }
   });
 
-  // Subida de archivo de imagen
   $('input-archivo').addEventListener('change', (ev) => {
     const archivo = ev.target.files?.[0];
     if (archivo) manejarArchivoImagen(archivo);
   });
 
-  // API key de Gemini guardada localmente o provista por archivo local ignorado en git
   const apiGuardada = localStorage.getItem(CLAVE_API_STORAGE) || window.SMARTFURNITURE_DEFAULT_API_KEY || '';
   if (apiGuardada) {
     $('input-api-key').value = apiGuardada;
@@ -337,46 +507,37 @@ function inicializarEventos() {
       })
       .catch(() => {});
   }
+
   $('btn-analizar-ia').addEventListener('click', ejecutarAnalisisGemini);
-  $('input-api-key').addEventListener('change', () => {
+  $('input-api-key').addEventListener('input', () => {
     const val = $('input-api-key').value.trim();
-    if (val) {
+    if (val.length > 20) {
       localStorage.setItem(CLAVE_API_STORAGE, val);
       if (estado.imagenBase64) ejecutarAnalisisGemini();
     }
   });
 
-  // Cambios de tipo y medidas
-  $('select-tipo').addEventListener('change', () => {
-    actualizarVisibilidadCamposTipo();
-    ajustarCantidadProporcionesSegunDivisiones();
-    recalcular();
-  });
-
-  ['input-repisas', 'input-cajones'].forEach((id) => {
+  ['input-base-ancho', 'input-base-alto', 'input-base-prof'].forEach((id) => {
     $(id).addEventListener('input', () => {
-      actualizarVisibilidadCamposTipo();
-      ajustarCantidadProporcionesSegunDivisiones();
-      recalcular();
+      const k = Number($('slider-escala-k').value) || 1;
+      aplicarFactorEscalaGeneral(k);
     });
   });
 
-  ['input-ancho', 'input-alto', 'input-profundidad', 'input-puertas', 'input-proporciones'].forEach((id) => {
+  $('slider-escala-k').addEventListener('input', (ev) => {
+    aplicarFactorEscalaGeneral(Number(ev.target.value));
+  });
+
+  $('btn-reset-escala').addEventListener('click', () => {
+    $('slider-escala-k').value = '1.00';
+    aplicarFactorEscalaGeneral(1.0);
+    estado.visor.reiniciarCamara();
+  });
+
+  ['input-ancho', 'input-alto', 'input-profundidad'].forEach((id) => {
     $(id).addEventListener('input', recalcular);
   });
 
-  // Botones de medidas rápidas
-  document.querySelectorAll('[data-preset-medidas]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const [w, h, d] = btn.dataset.presetMedidas.split(',').map(Number);
-      $('input-ancho').value = w;
-      $('input-alto').value = h;
-      $('input-profundidad').value = d;
-      recalcular();
-    });
-  });
-
-  // Controles del visor 3D
   $('slider-explosion').addEventListener('input', (ev) => {
     estado.visor.setExplosion(ev.target.value);
   });
@@ -391,7 +552,6 @@ function inicializarEventos() {
 window.addEventListener('DOMContentLoaded', () => {
   estado.visor = new Visor3D($('lienzo-3d'));
   inicializarEventos();
-  actualizarVisibilidadCamposTipo();
-  // Cargar por defecto el primer croquis de referencia para que todo se vea vivo al abrir
   seleccionarCroquisEjemplo(CROQUIS_EJEMPLO[0].id);
+  estado.visor.reiniciarCamara();
 });
