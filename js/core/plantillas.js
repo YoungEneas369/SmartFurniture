@@ -796,6 +796,173 @@ function construirRackFlancos({ W, H, D }) {
   };
 }
 
+/* ---------------- 7. Consola / Arrimo con Cubierta Elevada sobre Pilares (ej. 135×90×35 cm) ---------------- */
+
+function construirConsolaPilares({ W, H, D }) {
+  const piezas = [];
+  const hZoc = Math.max(40, Math.min(110, mm(H * 0.095)));
+  const margenZoc = Math.max(45, mm(W * 0.06));
+  const yBase = hZoc;
+
+  // 1. Zócalo retraído inferior (frente, trasera y 2 costados cortos)
+  piezas.push(
+    pieza({
+      nombre: 'Zócalo retraído frontal',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hZoc,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [margenZoc, 0, D - 2 * e],
+      tam: [W - 2 * margenZoc, hZoc, e],
+    }),
+    pieza({
+      nombre: 'Zócalo retraído trasero',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hZoc,
+      tapacanto: { largo: 0, ancho: 0 },
+      pos: [margenZoc, 0, e],
+      tam: [W - 2 * margenZoc, hZoc, e],
+    }),
+    pieza({
+      nombre: 'Base inferior principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yBase, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  // 2. Dos cuerpos laterales con nicho vertical y techo parcial que vuela hacia el centro
+  const yCuerpo = yBase + e;
+  const hPilar = Math.max(80, mm(H * 0.16));
+  const yTechoParcial = H - e - hPilar - e;
+  const hColLat = yTechoParcial - yCuerpo;
+
+  const wNichoLat = Math.max(140, mm(W * 0.22));
+  const wTechoParcial = Math.max(wNichoLat + 2 * e, mm(W * 0.34));
+  const xDivIzq = e + wNichoLat;
+  const xDivDer = W - e - wNichoLat - e;
+  const wCentro = xDivDer - (xDivIzq + e);
+
+  piezas.push(
+    // Laterales exteriores izquierdo y derecho
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hColLat,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 0 },
+      pos: [0, yCuerpo, 0],
+      tam: [e, hColLat, D],
+    }),
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hColLat,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 0 },
+      pos: [W - e, yCuerpo, 0],
+      tam: [e, hColLat, D],
+    }),
+    // Divisiones verticales interiores que delimitan los nichos laterales y el vano central
+    pieza({
+      nombre: 'División vertical interior',
+      grupo: 'estructura',
+      largo: hColLat,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 0 },
+      pos: [xDivIzq, yCuerpo, 0],
+      tam: [e, hColLat, D],
+    }),
+    pieza({
+      nombre: 'División vertical interior',
+      grupo: 'estructura',
+      largo: hColLat,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 0 },
+      pos: [xDivDer, yCuerpo, 0],
+      tam: [e, hColLat, D],
+    }),
+    // Cubiertas parciales izquierda y derecha (en voladizo hacia el centro dejando vano en U)
+    pieza({
+      nombre: 'Cubierta parcial lateral',
+      grupo: 'estructura',
+      largo: wTechoParcial,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yTechoParcial, 0],
+      tam: [wTechoParcial, e, D],
+    }),
+    pieza({
+      nombre: 'Cubierta parcial lateral',
+      grupo: 'estructura',
+      largo: wTechoParcial,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [W - wTechoParcial, yTechoParcial, 0],
+      tam: [wTechoParcial, e, D],
+    }),
+    // Repisa horizontal central a media altura entre las dos divisiones interiores
+    pieza({
+      nombre: 'Repisa central abierta',
+      grupo: 'repisa',
+      largo: wCentro,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 0 },
+      pos: [xDivIzq + e, yCuerpo + mm(hColLat * 0.42), 0],
+      tam: [wCentro, e, D],
+    }),
+  );
+
+  // 3. Dos pilares / soportes superiores sobre las cubiertas parciales + Cubierta superior corrida
+  const yPilar = yTechoParcial + e;
+  const xPilarIzq = Math.min(wTechoParcial - 2 * e, Math.max(e, xDivIzq - e));
+  const xPilarDer = Math.max(W - wTechoParcial + e, W - xPilarIzq - e);
+
+  piezas.push(
+    pieza({
+      nombre: 'Pilar soporte cubierta',
+      grupo: 'estructura',
+      largo: D,
+      ancho: hPilar,
+      tapacanto: { largo: 0, ancho: 2 },
+      pos: [xPilarIzq, yPilar, 0],
+      tam: [e, hPilar, D],
+    }),
+    pieza({
+      nombre: 'Pilar soporte cubierta',
+      grupo: 'estructura',
+      largo: D,
+      ancho: hPilar,
+      tapacanto: { largo: 0, ancho: 2 },
+      pos: [xPilarDer, yPilar, 0],
+      tam: [e, hPilar, D],
+    }),
+    pieza({
+      nombre: 'Cubierta superior principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hColLat, espacios: [mm(hColLat * 0.42), mm(hColLat * 0.58)], fracciones: [0.42, 0.58], yBase: hZoc },
+    advertencias: advertenciasRepisas(wCentro + 2 * e, [mm(hColLat * 0.42)], 1),
+    supuestos: [
+      `Arrimo / Consola escalonada de ${W}×${H}×${D} mm con zócalo retraído inferior (${hZoc} mm).`,
+      `Incluye 2 módulos laterales con cubiertas parciales (${wTechoParcial} mm), vano central abierto en U con repisa media (${wCentro} mm) y cubierta superior corrida sobre 2 pilares (${hPilar} mm).`,
+    ],
+  };
+}
+
 /* ---------------- Constructor Modular General ---------------- */
 
 function modular({
@@ -813,6 +980,7 @@ function modular({
   if (subtipo === 'gondola') return construirGondola({ W, H, D, niveles: secciones?.length || 4 });
   if (subtipo === 'rack_escalonado') return construirRackEscalonado({ W, H, D });
   if (subtipo === 'rack_flancos') return construirRackFlancos({ W, H, D });
+  if (subtipo === 'consola_pilares') return construirConsolaPilares({ W, H, D });
 
   const listaSec = Array.isArray(secciones) && secciones.length
     ? secciones

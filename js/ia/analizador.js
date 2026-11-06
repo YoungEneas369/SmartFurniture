@@ -90,6 +90,7 @@ const ESQUEMA_RESPUESTA = {
         'gondola',
         'rack_escalonado',
         'rack_flancos',
+        'consola_pilares',
       ],
       description: '"mesa" = mesa/escritorio de 4 patas sin repisas bajas; "puente_laterales" = estante mural con 2 columnas altas a los lados y repisas puente al centro; "flotante_entrelazada" = repisa flotante con cubo central y escuadras salientes; "gondola" = estantería exhibidora con bandejas voladas a ambos costados; "intercalado" = librero con divisiones verticales alternadas en zig-zag; "estandar" = mueble modular por niveles.',
     },
@@ -195,6 +196,7 @@ Analiza la imagen y devuelve el JSON estructurado siguiendo estas reglas:
    - Si es una góndola de tienda con bandejas laterales que sobresalen a ambos lados y cuerpo central: subtipo = "gondola".
    - Si es un rack de TV o aparador escalonado con 2 gabinetes laterales más bajos con puerta, un cajón ancho central abajo y una cubierta puente elevada sobre nichos centrales (ej. R-1456 de 1760×665×375 mm): subtipo = "rack_escalonado".
    - Si es un rack de TV o credenza horizontal baja dividida en 3 columnas (2 cajones grandes a los costados, repisas abiertas al centro) con zócalo retraído y cubierta superior flotante/elevada: subtipo = "rack_flancos".
+   - Si es un arrimo, consola o rack con cubierta superior corrida sostenida por 2 pilares/soportes sobre 2 módulos laterales con cubiertas parciales, dejando un vano central en U con repisa media y zócalo retraído (ej. 135×90×35 cm): subtipo = "consola_pilares".
    - Si es un librero alto cuyas divisiones verticales van alternadas en zig-zag entre un nivel y otro: subtipo = "intercalado".
    - En los demás casos (cajoneras, estantes con cajones arriba, vanitorios, escritorios con cajones, arrimos): subtipo = "estandar".
 
@@ -589,7 +591,7 @@ export function normalizarResultadoIA(raw, fuente = 'IA', rasgosVisuales = null)
     }
 
     // 3. Subtipo de topología estructural
-    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola', 'rack_escalonado', 'rack_flancos'];
+    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola', 'rack_escalonado', 'rack_flancos', 'consola_pilares'];
     const subtipo = subtiposValidos.includes(raw.subtipo) ? raw.subtipo : 'estandar';
 
     // 4. Validación ergonómica de dimensiones
@@ -1048,6 +1050,32 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
       relacionAnchoAlto: 3.46,
       descripcion: 'Rack TV horizontal de 1800 × 520 × 420 mm: placa base con zócalo retraído, cuerpo de 3 columnas (2 cajones laterales con tirador + columna central con repisa divisoria) y cubierta superior flotante elevada.',
       fuente: 'Foto reconocida (Rack TV 3 columnas + cubierta flotante)',
+    },
+  },
+  {
+    id: 'consola_pilares_135x90',
+    dimensionesImg: [[735, 588]],
+    cuadrantes: [243, 243, 244, 243],
+    clavesNombre: ['c5a4af'],
+    resultado: {
+      categoriaMueble: 'rack_tv',
+      subtipo: 'consola_pilares',
+      nombreMueble: 'Arrimo / Consola escalonada con cubierta sobre pilares y vano central (135×90×35 cm)',
+      tieneMedidasEscritas: true,
+      textoMedidasLeidas: '135 cm, 90 cm, 35 cm',
+      anchoDetectadoMm: 1350,
+      altoDetectadoMm: 900,
+      profundidadDetectadaMm: 350,
+      alturaPatasMm: 85,
+      tieneFondo: false,
+      secciones: [
+        { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.0 },
+        { ubicacionVertical: 'intermedio', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.0 },
+        { ubicacionVertical: 'superior', tipoSeccion: 'hueco', columnas: 2, filasApiladas: 1, proporcionAlto: 0.35 },
+      ],
+      relacionAnchoAlto: 1.5,
+      descripcion: 'Arrimo / Consola geométrica de 1350 × 900 × 350 mm: zócalo retraído inferior, 2 nichos verticales laterales con cubiertas parciales en voladizo, vano central abierto en U con repisa media y cubierta superior corrida sobre 2 pilares.',
+      fuente: 'Croquis reconocido (Arrimo 135×90×35 cm)',
     },
   },
 ]);
