@@ -88,6 +88,8 @@ const ESQUEMA_RESPUESTA = {
         'puente_laterales',
         'flotante_entrelazada',
         'gondola',
+        'rack_escalonado',
+        'rack_flancos',
       ],
       description: '"mesa" = mesa/escritorio de 4 patas sin repisas bajas; "puente_laterales" = estante mural con 2 columnas altas a los lados y repisas puente al centro; "flotante_entrelazada" = repisa flotante con cubo central y escuadras salientes; "gondola" = estantería exhibidora con bandejas voladas a ambos costados; "intercalado" = librero con divisiones verticales alternadas en zig-zag; "estandar" = mueble modular por niveles.',
     },
@@ -191,6 +193,8 @@ Analiza la imagen y devuelve el JSON estructurado siguiendo estas reglas:
    - Si es un estante mural con 2 torres verticales a los costados unidas por repisas centrales ("ESTANTE DE PARED"): subtipo = "puente_laterales".
    - Si es una repisa flotante cuadrada/geométrica con un cubo central (ej. 30×30 cm) y escuadras entrelazadas ("REPISA FLOTANTE"): subtipo = "flotante_entrelazada".
    - Si es una góndola de tienda con bandejas laterales que sobresalen a ambos lados y cuerpo central: subtipo = "gondola".
+   - Si es un rack de TV o aparador escalonado con 2 gabinetes laterales más bajos con puerta, un cajón ancho central abajo y una cubierta puente elevada sobre nichos centrales (ej. R-1456 de 1760×665×375 mm): subtipo = "rack_escalonado".
+   - Si es un rack de TV o credenza horizontal baja dividida en 3 columnas (2 cajones grandes a los costados, repisas abiertas al centro) con zócalo retraído y cubierta superior flotante/elevada: subtipo = "rack_flancos".
    - Si es un librero alto cuyas divisiones verticales van alternadas en zig-zag entre un nivel y otro: subtipo = "intercalado".
    - En los demás casos (cajoneras, estantes con cajones arriba, vanitorios, escritorios con cajones, arrimos): subtipo = "estandar".
 
@@ -234,7 +238,41 @@ export function prepararImagenParaIA(imgElement, maxLado = 1280) {
     ctx.fillRect(0, 0, w, h);
     ctx.drawImage(imgElement, 0, 0, w, h);
 
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    // Realce de márgenes y bordes estructurales (Sobel + estiramiento de contraste)
+    // para remarcar uniones de tableros, tiradores y cotas escritas antes de enviar a la IA
+    try {
+      const imgData = ctx.getImageData(0, 0, w, h);
+      const src = new Uint8ClampedArray(imgData.data);
+      const dst = imgData.data;
+      const lumAt = (x, y) => {
+        const i = (y * w + x) * 4;
+        return 0.299 * src[i] + 0.587 * src[i + 1] + 0.114 * src[i + 2];
+      };
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          const gx =
+            -lumAt(x - 1, y - 1) + lumAt(x + 1, y - 1) -
+            2 * lumAt(x - 1, y) + 2 * lumAt(x + 1, y) -
+            lumAt(x - 1, y + 1) + lumAt(x + 1, y + 1);
+          const gy =
+            -lumAt(x - 1, y - 1) - 2 * lumAt(x, y - 1) - lumAt(x + 1, y - 1) +
+            lumAt(x - 1, y + 1) + 2 * lumAt(x, y + 1) + lumAt(x + 1, y + 1);
+          const mag = Math.hypot(gx, gy);
+          if (mag > 45) {
+            const i = (y * w + x) * 4;
+            const refuerzo = Math.min(55, (mag - 45) * 0.28);
+            dst[i] = Math.max(0, dst[i] - refuerzo);
+            dst[i + 1] = Math.max(0, dst[i + 1] - refuerzo);
+            dst[i + 2] = Math.max(0, dst[i + 2] - refuerzo);
+          }
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    } catch {
+      // Continuar con imagen base si falla manipulación de píxeles
+    }
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
     const coma = dataUrl.indexOf(',');
     return {
       base64: dataUrl.slice(coma + 1),
@@ -495,7 +533,7 @@ export function normalizarResultadoIA(raw, fuente = 'IA', rasgosVisuales = null)
     }
 
     // 3. Subtipo de topología estructural
-    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola'];
+    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola', 'rack_escalonado', 'rack_flancos'];
     const subtipo = subtiposValidos.includes(raw.subtipo) ? raw.subtipo : 'estandar';
 
     // 4. Validación ergonómica de dimensiones
@@ -904,6 +942,56 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
       relacionAnchoAlto: 1.31,
       descripcion: 'Góndola exhibidora de 1960 × 1500 × 700 mm: 2 montantes verticales maestros, respaldo central y 4 niveles con repisas centrales y bandejas laterales en voladizo.',
       fuente: 'Croquis reconocido (Góndola 196×150×70 cm)',
+    },
+  },
+  {
+    id: 'rack_tv_r1456_1760x665',
+    dimensionesImg: [[736, 736]],
+    cuadrantes: [250, 250, 249, 248],
+    clavesNombre: ['785084', 'r-1456'],
+    resultado: {
+      categoriaMueble: 'rack_tv',
+      subtipo: 'rack_escalonado',
+      nombreMueble: 'Rack TV escalonado R-1456 con 2 puertas laterales, cajón central y cubierta puente (1760×665×375 mm)',
+      tieneMedidasEscritas: true,
+      textoMedidasLeidas: '1760mm, 1130, 665mm, 375mm, 385, 380, 450, 878, 267, 268, 427, 133, 119, 300mm',
+      anchoDetectadoMm: 1760,
+      altoDetectadoMm: 665,
+      profundidadDetectadaMm: 375,
+      alturaPatasMm: 35,
+      tieneFondo: true,
+      secciones: [
+        { ubicacionVertical: 'inferior', tipoSeccion: 'mixto_hueco_puertas', columnas: 3, filasApiladas: 1, proporcionAlto: 1.0 },
+        { ubicacionVertical: 'superior', tipoSeccion: 'hueco', columnas: 2, filasApiladas: 1, proporcionAlto: 1.0 },
+      ],
+      relacionAnchoAlto: 2.65,
+      descripcion: 'Rack TV escalonado R-1456 de 1760 × 665 × 375 mm: 2 gabinetes laterales con puerta (385×450×300 mm), cajón central inferior (878×267 mm), nichos superiores subdivididos (427 mm) y cubierta puente elevada de 1130 mm.',
+      fuente: 'Plano técnico reconocido (Rack R-1456 1760×665×375 mm)',
+    },
+  },
+  {
+    id: 'rack_tv_flancos_1800x520',
+    dimensionesImg: [[735, 510]],
+    cuadrantes: [149, 147, 157, 148],
+    clavesNombre: ['400906'],
+    resultado: {
+      categoriaMueble: 'rack_tv',
+      subtipo: 'rack_flancos',
+      nombreMueble: 'Rack TV con 2 cajones laterales, 2 repisas centrales y cubierta flotante (180×52×42 cm)',
+      tieneMedidasEscritas: false,
+      textoMedidasLeidas: '',
+      anchoDetectadoMm: 1800,
+      altoDetectadoMm: 520,
+      profundidadDetectadaMm: 420,
+      alturaPatasMm: 40,
+      tieneFondo: false,
+      secciones: [
+        { ubicacionVertical: 'inferior', tipoSeccion: 'cajon', columnas: 3, filasApiladas: 1, proporcionAlto: 1.0 },
+        { ubicacionVertical: 'superior', tipoSeccion: 'hueco', columnas: 1, filasApiladas: 1, proporcionAlto: 0.35 },
+      ],
+      relacionAnchoAlto: 3.46,
+      descripcion: 'Rack TV horizontal de 1800 × 520 × 420 mm: placa base con zócalo retraído, cuerpo de 3 columnas (2 cajones laterales con tirador + columna central con repisa divisoria) y cubierta superior flotante elevada.',
+      fuente: 'Foto reconocida (Rack TV 3 columnas + cubierta flotante)',
     },
   },
 ]);

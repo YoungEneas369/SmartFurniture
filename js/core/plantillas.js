@@ -408,6 +408,394 @@ function construirGondola({ W, H, D, niveles = 4 }) {
   };
 }
 
+/* ---------------- 5. Rack TV Escalonado (ej. R-1456 176×66.5×37.5 cm) ---------------- */
+
+function construirRackEscalonado({ W, H, D }) {
+  const piezas = [];
+  const yZoc = Math.max(24, Math.min(60, mm(H * 0.055)));
+  const yBaseSup = yZoc + e;
+
+  // Zócalo perimetral inferior y base continua a piso
+  piezas.push(
+    pieza({
+      nombre: 'Zócalo frontal',
+      grupo: 'estructura',
+      largo: W - 2 * e,
+      ancho: yZoc,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [e, 0, D - 2 * e],
+      tam: [W - 2 * e, yZoc, e],
+    }),
+    pieza({
+      nombre: 'Zócalo trasero',
+      grupo: 'estructura',
+      largo: W - 2 * e,
+      ancho: yZoc,
+      tapacanto: { largo: 0, ancho: 0 },
+      pos: [e, 0, e],
+      tam: [W - 2 * e, yZoc, e],
+    }),
+    pieza({
+      nombre: 'Base inferior principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yZoc, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  // Dimensiones proporcionales de los 2 gabinetes laterales (ej. 385×450×300 mm en 1760×665×375 mm)
+  const wLat = Math.max(180, mm(W * 0.22));
+  const hCuerpoMax = H - yBaseSup - e;
+  const hLat = Math.max(140, mm(hCuerpoMax * 0.74));
+  const dLat = Math.max(150, mm(D * 0.82));
+
+  // Laterales exteriores izquierdo y derecho
+  piezas.push(
+    pieza({
+      nombre: 'Lateral exterior módulo',
+      grupo: 'estructura',
+      largo: hLat - e,
+      ancho: dLat - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [0, yBaseSup, 0],
+      tam: [e, hLat - e, dLat - e],
+    }),
+    pieza({
+      nombre: 'Lateral exterior módulo',
+      grupo: 'estructura',
+      largo: hLat - e,
+      ancho: dLat - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [W - e, yBaseSup, 0],
+      tam: [e, hLat - e, dLat - e],
+    }),
+    // Cubiertas de los 2 módulos laterales
+    pieza({
+      nombre: 'Cubierta módulo lateral',
+      grupo: 'estructura',
+      largo: wLat,
+      ancho: dLat,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yBaseSup + hLat - e, 0],
+      tam: [wLat, e, dLat],
+    }),
+    pieza({
+      nombre: 'Cubierta módulo lateral',
+      grupo: 'estructura',
+      largo: wLat,
+      ancho: dLat,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [W - wLat, yBaseSup + hLat - e, 0],
+      tam: [wLat, e, dLat],
+    }),
+    // 2 Puertas de los módulos laterales (ej. 380×450 mm)
+    pieza({
+      nombre: 'Puerta gabinete lateral',
+      grupo: 'puerta',
+      largo: hLat - e - s,
+      ancho: wLat - s,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [s, yBaseSup + s, dLat - e],
+      tam: [wLat - s, hLat - e - s, e],
+    }),
+    pieza({
+      nombre: 'Puerta gabinete lateral',
+      grupo: 'puerta',
+      largo: hLat - e - s,
+      ancho: wLat - s,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [W - wLat, yBaseSup + s, dLat - e],
+      tam: [wLat - s, hLat - e - s, e],
+    }),
+  );
+
+  // 2 Montantes verticales centrales que suben hasta la cubierta puente superior
+  const xMontIzq = wLat;
+  const xMontDer = W - wLat - e;
+  const wCentro = xMontDer - (xMontIzq + e);
+  piezas.push(
+    pieza({
+      nombre: 'Montante vertical central',
+      grupo: 'estructura',
+      largo: hCuerpoMax,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xMontIzq, yBaseSup, 0],
+      tam: [e, hCuerpoMax, D - e],
+    }),
+    pieza({
+      nombre: 'Montante vertical central',
+      grupo: 'estructura',
+      largo: hCuerpoMax,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xMontDer, yBaseSup, 0],
+      tam: [e, hCuerpoMax, D - e],
+    }),
+  );
+
+  // Cubierta superior puente elevada (ej. 1130×375 mm)
+  const wPuente = Math.min(W, Math.max(wCentro + 2 * e + 80, mm(W * 0.64)));
+  const xPuente = mm((W - wPuente) / 2);
+  piezas.push(
+    pieza({
+      nombre: 'Cubierta superior puente',
+      grupo: 'estructura',
+      largo: wPuente,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [xPuente, H - e, 0],
+      tam: [wPuente, e, D],
+    }),
+  );
+
+  // Sección central inferior: Gaveta / Cajón ancho (ej. 878×267 mm) + repisa divisoria encima
+  const hCajon = Math.max(90, mm((hCuerpoMax - e) * 0.48));
+  piezas.push(
+    pieza({
+      nombre: 'Frente de cajón central',
+      grupo: 'frente',
+      largo: wCentro - 2 * s,
+      ancho: hCajon - s,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [xMontIzq + e + s, yBaseSup + s, D - e],
+      tam: [wCentro - 2 * s, hCajon - s, e],
+    }),
+    pieza({
+      nombre: 'Repisa central sobre cajón',
+      grupo: 'repisa',
+      largo: wCentro,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xMontIzq + e, yBaseSup + hCajon, 0],
+      tam: [wCentro, e, D - e],
+    }),
+  );
+
+  // Sección central superior bajo el puente: división vertical al medio + sub-repisa derecha
+  const yNicho = yBaseSup + hCajon + e;
+  const hNicho = H - e - yNicho;
+  if (hNicho > 70 && wCentro > 180) {
+    const wMitadIzq = mm((wCentro - e) / 2);
+    const xDivNicho = xMontIzq + e + wMitadIzq;
+    const wMitadDer = xMontDer - (xDivNicho + e);
+    piezas.push(
+      pieza({
+        nombre: 'División vertical nicho',
+        grupo: 'estructura',
+        largo: hNicho,
+        ancho: D - e,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [xDivNicho, yNicho, 0],
+        tam: [e, hNicho, D - e],
+      }),
+    );
+    if (hNicho > 110 && wMitadDer > 80) {
+      const hSub = mm((hNicho - e) / 2);
+      piezas.push(
+        pieza({
+          nombre: 'Repisa nicho derecho',
+          grupo: 'repisa',
+          largo: wMitadDer,
+          ancho: D - e,
+          tapacanto: { largo: 1, ancho: 0 },
+          pos: [xDivNicho + e, yNicho + hSub, 0],
+          tam: [wMitadDer, e, D - e],
+        }),
+      );
+    }
+  }
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hCuerpoMax, espacios: [hCajon, Math.max(40, hNicho)], fracciones: [0.5, 0.5], yBase: yZoc },
+    advertencias: advertenciasRepisas(wCentro + 2 * e, [hCajon], 1),
+    supuestos: [
+      `Rack TV escalonado de 3 cuerpos: 2 gabinetes laterales con puerta (${wLat}×${hLat} mm) y cuerpo central elevado (${H} mm).`,
+      `Incluye cajón central inferior (${wCentro}×${hCajon} mm), nichos superiores subdivididos y cubierta puente de ${wPuente} mm.`,
+    ],
+  };
+}
+
+/* ---------------- 6. Rack TV con Flancos y Cubierta Flotante ---------------- */
+
+function construirRackFlancos({ W, H, D }) {
+  const piezas = [];
+  const hZoc = Math.max(24, Math.min(60, mm(H * 0.08)));
+  const hGapSup = Math.max(28, Math.min(70, mm(H * 0.10)));
+
+  // 1. Placa base inferior en el suelo + zócalo retraído
+  const margenZoc = Math.max(40, mm(W * 0.06));
+  piezas.push(
+    pieza({
+      nombre: 'Placa base inferior',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, 0, 0],
+      tam: [W, e, D],
+    }),
+    pieza({
+      nombre: 'Zócalo retraído inferior',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hZoc,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [margenZoc, e, D - 3 * e],
+      tam: [W - 2 * margenZoc, hZoc, e],
+    }),
+    pieza({
+      nombre: 'Zócalo retraído inferior',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hZoc,
+      tapacanto: { largo: 0, ancho: 0 },
+      pos: [margenZoc, e, 2 * e],
+      tam: [W - 2 * margenZoc, hZoc, e],
+    }),
+  );
+
+  // 2. Cuerpo principal dividido en 3 columnas (Cajón izquierdo | 2 Repisas centrales | Cajón derecho)
+  const yCuerpo = e + hZoc;
+  const yTechoCuerpo = H - e - hGapSup;
+  const hInt = yTechoCuerpo - e - (yCuerpo + e);
+  const wCol = mm((W - 4 * e) / 3);
+  const xDiv1 = e + wCol;
+  const xDiv2 = W - e - wCol - e;
+  const wCentro = xDiv2 - (xDiv1 + e);
+
+  piezas.push(
+    pieza({
+      nombre: 'Base cuerpo principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yCuerpo, 0],
+      tam: [W, e, D],
+    }),
+    pieza({
+      nombre: 'Cubierta cuerpo principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yTechoCuerpo - e, 0],
+      tam: [W, e, D],
+    }),
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hInt,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [0, yCuerpo + e, 0],
+      tam: [e, hInt, D - e],
+    }),
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hInt,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [W - e, yCuerpo + e, 0],
+      tam: [e, hInt, D - e],
+    }),
+    pieza({
+      nombre: 'División vertical columna',
+      grupo: 'estructura',
+      largo: hInt,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xDiv1, yCuerpo + e, 0],
+      tam: [e, hInt, D - e],
+    }),
+    pieza({
+      nombre: 'División vertical columna',
+      grupo: 'estructura',
+      largo: hInt,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xDiv2, yCuerpo + e, 0],
+      tam: [e, hInt, D - e],
+    }),
+    // Frentes de los 2 cajones laterales
+    pieza({
+      nombre: 'Frente de cajón lateral',
+      grupo: 'frente',
+      largo: wCol - 2 * s,
+      ancho: hInt - 2 * s,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [e + s, yCuerpo + e + s, D - e],
+      tam: [wCol - 2 * s, hInt - 2 * s, e],
+    }),
+    pieza({
+      nombre: 'Frente de cajón lateral',
+      grupo: 'frente',
+      largo: wCol - 2 * s,
+      ancho: hInt - 2 * s,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [xDiv2 + e + s, yCuerpo + e + s, D - e],
+      tam: [wCol - 2 * s, hInt - 2 * s, e],
+    }),
+    // Repisa horizontal en la columna central abierta
+    pieza({
+      nombre: 'Repisa central abierta',
+      grupo: 'repisa',
+      largo: wCentro,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xDiv1 + e, yCuerpo + e + mm((hInt - e) / 2), 0],
+      tam: [wCentro, e, D - e],
+    }),
+  );
+
+  // 3. Soportes superiores retraídos + Cubierta superior flotante
+  piezas.push(
+    pieza({
+      nombre: 'Soporte cubierta flotante',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hGapSup,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [margenZoc, yTechoCuerpo, D - 3 * e],
+      tam: [W - 2 * margenZoc, hGapSup, e],
+    }),
+    pieza({
+      nombre: 'Soporte cubierta flotante',
+      grupo: 'estructura',
+      largo: W - 2 * margenZoc,
+      ancho: hGapSup,
+      tapacanto: { largo: 0, ancho: 0 },
+      pos: [margenZoc, yTechoCuerpo, 2 * e],
+      tam: [W - 2 * margenZoc, hGapSup, e],
+    }),
+    pieza({
+      nombre: 'Cubierta superior flotante',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hInt, espacios: [mm(hInt / 2), mm(hInt / 2)], fracciones: [0.5, 0.5], yBase: yCuerpo },
+    advertencias: advertenciasRepisas(wCentro + 2 * e, [mm(hInt / 2)], 1),
+    supuestos: [
+      `Rack TV de 3 columnas con 2 cajones laterales (${wCol} mm), columna central con 2 espacios abiertos (${wCentro} mm) y cubierta superior flotante.`,
+      `Incluye placa base inferior y soportes retraídos de ${hZoc} mm y ${hGapSup} mm.`,
+    ],
+  };
+}
+
 /* ---------------- Constructor Modular General ---------------- */
 
 function modular({
@@ -423,6 +811,8 @@ function modular({
   if (subtipo === 'puente_laterales') return construirPuenteLaterales({ W, H, D });
   if (subtipo === 'flotante_entrelazada') return construirFlotanteEntrelazada({ W, H, D });
   if (subtipo === 'gondola') return construirGondola({ W, H, D, niveles: secciones?.length || 4 });
+  if (subtipo === 'rack_escalonado') return construirRackEscalonado({ W, H, D });
+  if (subtipo === 'rack_flancos') return construirRackFlancos({ W, H, D });
 
   const listaSec = Array.isArray(secciones) && secciones.length
     ? secciones
