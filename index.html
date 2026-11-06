@@ -7,7 +7,7 @@
   <title>SmartFurniture — Reconocimiento, Despiece y Escalamiento 3D</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./css/estilos.css?v=21">
+  <link rel="stylesheet" href="./css/estilos.css?v=22">
   <script type="importmap">
   {
     "imports": {
@@ -39,11 +39,36 @@
 
       <div class="grid-paso1">
         <div>
-          <div class="fila-subida" style="margin-top:0;margin-bottom:12px">
+          <div class="fila-subida" style="margin-top:0;margin-bottom:12px;display:grid;grid-template-columns:1fr;gap:8px">
             <label class="btn-subir" for="input-archivo" style="font-size:1rem;padding:12px 18px;width:100%">
               📷 Seleccionar foto o croquis de tu galería
             </label>
             <input id="input-archivo" type="file" accept="image/*" hidden>
+            <button id="btn-abrir-pizarra" type="button" class="btn-secundario" style="width:100%;padding:10px 14px;border-color:#38bdf8;color:#38bdf8">
+              ✏️ Dibujar Esquema a Mano (Boceto → Croquis 2D → 3D)
+            </button>
+          </div>
+
+          <!-- PIZARRA INTERACTIVA DE DIBUJO ESQUEMA A MANO -->
+          <div id="panel-pizarra-esquema" class="panel-pizarra" hidden>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+              <strong style="color:#38bdf8;font-size:0.88rem">✏️ Pizarra de Dibujo Esquema (Traza tu idea y pásala a Croquis 2D y 3D)</strong>
+              <button id="btn-cerrar-pizarra" type="button" class="btn-secundario" style="padding:2px 8px;font-size:0.75rem">✕ Cerrar</button>
+            </div>
+            <p class="texto-suave" style="margin:0 0 8px;font-size:0.78rem">
+              Dibuja líneas horizontales (repisas) o verticales (divisiones). Pon un <strong>● Pomo</strong> donde quieras cajón/puerta, o deja el espacio sin pomo (o con <strong>▨ Vacío</strong>) para que sea un <strong>hueco abierto</strong>.
+            </p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+              <button type="button" class="btn-herr-pizarra btn-secundario activo" data-herr="linea" style="padding:4px 9px;font-size:0.76rem">─ Línea Repisa/División</button>
+              <button type="button" class="btn-herr-pizarra btn-secundario" data-herr="rect" style="padding:4px 9px;font-size:0.76rem">▭ Contorno</button>
+              <button type="button" class="btn-herr-pizarra btn-secundario" data-herr="pomo" style="padding:4px 9px;font-size:0.76rem">● Pomo Cajón/Puerta</button>
+              <button type="button" class="btn-herr-pizarra btn-secundario" data-herr="vacio" style="padding:4px 9px;font-size:0.76rem">▨ Marcar Vacío</button>
+              <button type="button" id="btn-limpiar-pizarra" class="btn-secundario" style="padding:4px 9px;font-size:0.76rem">🗑️ Reiniciar marco</button>
+            </div>
+            <canvas id="canvas-pizarra-esquema" width="400" height="280" style="width:100%;max-width:400px;background:#ffffff;border:2px solid #38bdf8;border-radius:8px;touch-action:none;cursor:crosshair;display:block;margin:0 auto 8px"></canvas>
+            <button id="btn-convertir-esquema" type="button" class="btn-primario" style="width:100%;padding:9px 14px;font-size:0.86rem">
+              📐 Pasar Dibujo Esquema → Croquis Técnico 2D → Modelo 3D
+            </button>
           </div>
 
           <label class="texto-suave" style="display:block;margin-bottom:6px;font-weight:600">
@@ -66,9 +91,12 @@
         <div id="vista-previa-contenedor" class="vista-previa">
           <div id="vista-previa-svg"></div>
           <img id="vista-previa-img" alt="Croquis o foto cargada" hidden>
-          <div id="barra-herramientas-img" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%" hidden>
-            <button id="btn-toggle-margenes" type="button" class="btn-secundario" style="font-size:0.8rem;padding:5px 12px">
+          <div id="barra-herramientas-img" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;width:100%;margin-top:6px" hidden>
+            <button id="btn-toggle-margenes" type="button" class="btn-secundario" style="font-size:0.78rem;padding:5px 10px">
               ✏️ Recalcar márgenes / Simplificar bordes
+            </button>
+            <button id="btn-toggle-vacios" type="button" class="btn-secundario" style="font-size:0.78rem;padding:5px 10px;border-color:#38bdf8;color:#7dd3fc">
+              ▨ Ver Espacios Vacíos en Foto
             </button>
           </div>
           <div id="resultado-ia" class="resultado-ia" hidden></div>
@@ -79,7 +107,52 @@
     <div id="caja-errores" class="alerta-error" hidden></div>
     <div id="caja-advertencias" class="alerta-aviso" hidden></div>
 
-    <!-- PASO 2: MEDIDAS BASE Y DESCOMPOSICIÓN DEL MUEBLE -->
+        <!-- PUENTE VISUAL PRE-3D: DE ESQUEMA / FOTO -> CROQUIS TÉCNICO 2D -> 3D -->
+    <section class="paso-card" aria-labelledby="titulo-croquis-2d" style="border-color:#0284c7">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <h2 class="paso-titulo" id="titulo-croquis-2d" style="margin:0">
+          <span class="paso-num" style="background:#34d399">1.5</span>
+          Interpretación Pre-3D: Croquis Técnico 2D y Mapa de Espacios Vacíos
+        </h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="btn-descargar-croquis-svg" type="button" class="btn-secundario" style="padding:5px 12px;font-size:0.8rem">
+            📥 Descargar Croquis 2D (.SVG)
+          </button>
+          <a href="#titulo-paso-3" class="btn-primario" style="padding:5px 12px;font-size:0.8rem;text-decoration:none">
+            🚀 Ver Modelo 3D ↓
+          </a>
+        </div>
+      </div>
+
+      <!-- Barra visual de las 3 etapas de transformación -->
+      <div class="pipeline-3-etapas">
+        <div class="etapa-item">
+          <span class="etapa-badge">Etapa 1</span>
+          <strong>Foto o Dibujo Esquema</strong>
+          <small>Detección Sobel de bordes, silueta y fondo pasante</small>
+        </div>
+        <div class="etapa-flecha">──►</div>
+        <div class="etapa-item activo">
+          <span class="etapa-badge">Etapa 2 (Pre-3D)</span>
+          <strong>Croquis Técnico 2D + Vacíos</strong>
+          <small>Plano acotado con huecos abiertos, vanos de patas y puertas/cajones</small>
+        </div>
+        <div class="etapa-flecha">──►</div>
+        <div class="etapa-item">
+          <span class="etapa-badge">Etapa 3</span>
+          <strong>Modelo 3D y Despiece</strong>
+          <small>Volumen ℝ³ sin colisiones + corte en plancha 2440×1220 mm</small>
+        </div>
+      </div>
+
+      <!-- Lienzo SVG del Croquis Técnico 2D -->
+      <div id="contenedor-croquis-2d" style="width:100%;margin:10px 0"></div>
+
+      <!-- Detalle cuantitativo de los Espacios Vacíos detectados -->
+      <div id="resumen-espacios-vacios" class="resumen-vacios"></div>
+    </section>
+
+<!-- PASO 2: MEDIDAS BASE Y DESCOMPOSICIÓN DEL MUEBLE -->
     <section class="paso-card" aria-labelledby="titulo-paso-2">
       <h2 class="paso-titulo" id="titulo-paso-2">
         <span class="paso-num">2</span>
@@ -308,6 +381,6 @@
       });
     }
   </script>
-  <script type="module" src="./js/ui/app.js?v=21"></script>
+  <script type="module" src="./js/ui/app.js?v=22"></script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import { calcularProyecto } from '../js/core/sistema.js';
 import { normalizarResultadoIA, CROQUIS_EJEMPLO, CATALOGO_ALBUM_MUEBLES } from '../js/ia/analizador.js';
 import { renderizarPlanosCorte } from '../js/ui/planoCorte.js';
 import { mapaColoresPorFila } from '../js/ui/colores.js';
+import { calcularEspaciosVaciosFrontales, generarCroquisTecnicoSVG } from '../js/ui/croquis2d.js';
 
 test('los 12 muebles del álbum Muebles y Descargas producen modelos 3D sin colisiones y planos de corte válidos', () => {
   for (const item of CATALOGO_ALBUM_MUEBLES) {
@@ -116,4 +117,28 @@ test('normalizarResultadoIA corrige inversión arriba/abajo, expande filasApilad
   );
   assert.ok(vanitorioCorregido.anchoDetectadoMm <= 700, `Ancho corregido fue ${vanitorioCorregido.anchoDetectadoMm}`);
   assert.equal(vanitorioCorregido.altoDetectadoMm, 820);
+});
+
+
+test('Croquis Técnico 2D y detector de espacios vacíos generan vistas válidas para los 47 muebles', () => {
+  for (const item of CATALOGO_ALBUM_MUEBLES) {
+    const ia = normalizarResultadoIA(item.resultado, item.resultado.fuente);
+    const r = calcularProyecto('modular', {
+      ancho: ia.anchoDetectadoMm,
+      alto: ia.altoDetectadoMm,
+      profundidad: ia.profundidadDetectadaMm,
+      subtipo: ia.subtipo || 'estandar',
+      secciones: ia.secciones,
+      alturaPatasMm: ia.alturaPatasMm,
+      tieneFondo: ia.tieneFondo,
+    });
+    const vacios = calcularEspaciosVaciosFrontales(r.mueble);
+    assert.ok(Array.isArray(vacios), `${item.id}: vacios debe ser un arreglo`);
+    const svg = generarCroquisTecnicoSVG(r.mueble, {
+      nombreMueble: ia.nombreMueble,
+      subtipo: ia.subtipo,
+      tieneFondo: ia.tieneFondo,
+    });
+    assert.ok(svg.includes('<svg') && svg.includes('VISTA FRONTAL ACOTADA'), `${item.id}: debe generar Croquis 2D SVG`);
+  }
 });

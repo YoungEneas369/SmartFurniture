@@ -10,10 +10,10 @@
  *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
  *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=20';
-import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=20';
-import { calcularProyecto } from '../core/sistema.js?v=20';
-import { tapacantoPorFila } from '../core/calculos.js?v=20';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=22';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=22';
+import { calcularProyecto } from '../core/sistema.js?v=22';
+import { tapacantoPorFila } from '../core/calculos.js?v=22';
 import {
   analizarConGemini,
   analizarImagenLocal,
@@ -21,10 +21,15 @@ import {
   prepararImagenParaIA,
   extraerRasgosVisuales,
   CROQUIS_EJEMPLO,
-} from '../ia/analizador.js?v=20';
-import { mapaColoresPorFila } from './colores.js?v=20';
-import { renderizarPlanosCorte } from './planoCorte.js?v=20';
-import { Visor3D } from './visor3d.js?v=20';
+} from '../ia/analizador.js?v=22';
+import { mapaColoresPorFila } from './colores.js?v=22';
+import { renderizarPlanosCorte } from './planoCorte.js?v=22';
+import { Visor3D } from './visor3d.js?v=22';
+import {
+  generarCroquisTecnicoSVG,
+  calcularEspaciosVaciosFrontales,
+  inicializarPizarraEsquema,
+} from './croquis2d.js?v=22';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 
@@ -45,7 +50,10 @@ const estado = {
   datosConfirmadosUsuario: false,
   imgOriginalDataUrl: null,
   imgMargenesDataUrl: null,
+  imgVaciosDataUrl: null,
   mostrandoMargenes: false,
+  mostrandoVacios: false,
+  pizarraCtrl: null,
   visor: null,
   ultimoResultado: null,
 };
@@ -416,6 +424,11 @@ async function manejarArchivoImagen(archivo) {
         estado.imagenBase64 = optimizada.base64;
         estado.imagenMime = optimizada.mimeType;
         estado.imgMargenesDataUrl = optimizada.mapaBordesDataUrl || optimizada.realzadaDataUrl || null;
+        estado.imgVaciosDataUrl = optimizada.mapaVaciosDataUrl || null;
+      }
+      estado.mostrandoVacios = false;
+      if ($('btn-toggle-vacios')) {
+        $('btn-toggle-vacios').textContent = '▨ Ver Espacios Vacíos en Foto';
       }
       if ($('barra-herramientas-img')) {
         $('barra-herramientas-img').hidden = !estado.imgMargenesDataUrl;
@@ -586,6 +599,64 @@ function renderizarExplicacionMatematica(resultado) {
   `;
 }
 
+
+function renderizarCroquis2DYVacios(resultado) {
+  const contSvg = $('contenedor-croquis-2d');
+  const contRes = $('resumen-espacios-vacios');
+  if (!contSvg || !resultado?.mueble) return;
+
+  const svg = generarCroquisTecnicoSVG(resultado.mueble, {
+    nombreMueble: estado.nombreMueble,
+    subtipo: estado.subtipo,
+    tieneFondo: estado.tieneFondo,
+  });
+  contSvg.innerHTML = svg;
+
+  if (contRes) {
+    const vacios = calcularEspaciosVaciosFrontales(resultado.mueble);
+    const areaTotal = (resultado.mueble.params.ancho || 1) * (resultado.mueble.params.alto || 1);
+    const areaVacia = vacios.reduce((acc, v) => acc + v.w * v.h, 0);
+    const pctVacio = Math.min(95, Math.round((areaVacia / Math.max(1, areaTotal)) * 100));
+
+    if (!vacios.length) {
+      contRes.innerHTML = `
+        <div style="color:#cbd5e1">
+          🔒 <strong>Frente 100% cerrado:</strong> El croquis técnico no presenta vanos ni nichos abiertos en el frente (todos los compartimentos tienen puerta o frente de cajón).
+        </div>`;
+    } else {
+      const chips = vacios
+        .map(
+          (v, i) => `
+          <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#0b1120;border:1px solid #0284c7;border-radius:6px;color:#e0f2fe;font-size:0.78rem">
+            <strong style="color:#38bdf8">#${i + 1} ${v.etiqueta}:</strong> ${Math.round(v.w)} × ${Math.round(v.h)} mm
+          </span>`,
+        )
+        .join('');
+      contRes.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px">
+          <strong style="color:#38bdf8">▨ Interpretación de Espacios Vacíos y Vanos en el Croquis (${vacios.length} zona(s) abiertas · ${pctVacio}% del frente):</strong>
+          <span class="texto-suave" style="font-size:0.76rem">Se excluyen automáticamente de frentes de puerta/cajón antes de construir el 3D</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">${chips}</div>
+      `;
+    }
+  }
+}
+
+function descargarCroquisSVG() {
+  const contSvg = $('contenedor-croquis-2d');
+  if (!contSvg || !contSvg.innerHTML.trim()) return;
+  const blob = new Blob([contSvg.innerHTML.trim()], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Croquis_2D_${(estado.nombreMueble || 'Mueble').replace(/[^a-zA-Z0-9_-]+/g, '_')}.svg`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function recalcular() {
   const cajaError = $('caja-errores');
   const cajaAvisos = $('caja-advertencias');
@@ -633,6 +704,7 @@ function recalcular() {
     }
     $('lista-supuestos').innerHTML = resultado.mueble.supuestos.map((s) => `<li>${s}</li>`).join('');
 
+    renderizarCroquis2DYVacios(resultado);
     estado.visor.actualizar(resultado.mueble, resultado.despiece, false);
     renderizarPlanosCorte($('contenedor-planos'), resultado.corte, resultado.despiece.filas);
     renderizarTablaDespiece(resultado.despiece);

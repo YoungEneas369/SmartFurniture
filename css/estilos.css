@@ -542,3 +542,80 @@ td.num {
   color: #34d399;
   border: 1px solid rgba(16, 185, 129, 0.5);
 }
+
+
+/* Pipeline de 3 etapas (Esquema/Foto -> Croquis 2D -> 3D) */
+.pipeline-3-etapas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: #0b1120;
+  border: 1px solid #26354d;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.etapa-item {
+  flex: 1;
+  min-width: 170px;
+  background: #111c30;
+  border: 1px solid #26354d;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.etapa-item.activo {
+  border-color: #38bdf8;
+  background: #132542;
+}
+
+.etapa-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.etapa-item strong {
+  font-size: 0.88rem;
+  color: #f1f5f9;
+}
+
+.etapa-item small {
+  font-size: 0.76rem;
+  color: #94a3b8;
+}
+
+.etapa-flecha {
+  color: #38bdf8;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.panel-pizarra {
+  background: #0f172a;
+  border: 1px solid #38bdf8;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.btn-herr-pizarra.activo {
+  border-color: #38bdf8;
+  background: #0284c733;
+  color: #38bdf8;
+}
+
+.resumen-vacios {
+  background: #0f172a;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.83rem;
+}

@@ -233,6 +233,12 @@ Analiza la imagen y devuelve el JSON estructurado siguiendo estas reglas:
    - En un escritorio con 2 cajones superiores (ej. 120,2 cm ancho × 75 cm alto y 61,9 cm de espacio libre bajo los cajones), pon alturaPatasMm = 600, tieneFondo = false y 1 sección con tipoSeccion = "cajon", columnas = 2.
    - En un arrimo/credenza con patas de 28 cm, un nivel central que tiene un hueco abierto de 52 cm a la izquierda y 2 puertas en 62 cm a la derecha, y una repisa abierta de 17 cm arriba, usa alturaPatasMm = 280, nivel inferior con tipoSeccion = "mixto_hueco_puertas", columnas = 3, y nivel superior con tipoSeccion = "hueco", columnas = 1.
 
+2.5. INTERPRETACIÓN CRÍTICA DE ESPACIOS VACÍOS (HUECOS, VANOS DE PIERNAS Y SILUETAS ESCALONADAS) Y DIBUJOS ESQUEMA:
+   - Distingue con máxima precisión entre ESPACIOS VACÍOS ("hueco") y FRENTES CERRADOS ("cajon" o "puertas"):
+     • Un ESPACIO VACÍO / HUECO ABIERTO deja ver la sombra interior bajo la repisa superior o deja ver la pared del fondo a través del mueble (tieneFondo = false).
+     • Un VANO INFERIOR ABIERTO (bajo escritorios, mesas, vanitorios o arrimos con patas altas) NO es un cajón ni una puerta: represéntalo mediante alturaPatasMm (ej. 600 mm en escritorios con cajones arriba, 280 mm en arrimos, 100-170 mm en mesas de centro) o con subtipo = "escritorio_pedestal" / "escritorio_pedestal_izq" / "isla_alero".
+     • Si la foto es un DIBUJO ESQUEMA o BOCETO LINEAL hecho a mano: los rectángulos vacíos sin tirador ni círculo central son HUECOS ABIERTOS ("hueco"); los rectángulos con un círculo/punto o línea corta central son CAJONES ("cajon") si son horizontales o PUERTAS ("puertas") si son altos verticales.
+
 3. FOTOS SIN COTAS ESCRITAS:
    - Calcula la proporción ancho/alto SOLO del mueble, ignorando paredes vacías.
    - Usa medidas ergonómicas reales (ej. vanitorio 600×820×450 mm con alturaPatasMm=110; estantería rústica angosta de 3 niveles 600×1500×350 mm; librero alto de 6 niveles 900×1900×350 mm).`;
@@ -354,6 +360,68 @@ export function prepararImagenParaIA(imgElement, maxLado = 1280) {
       mapaBordesDataUrl = null;
     }
 
+    // Generar también Mapa Visual de Espacios Vacíos y Estructura (overlay pre-3D)
+    let mapaVaciosDataUrl = null;
+    try {
+      const rasgos = extraerRasgosVisuales(imgElement);
+      const av = rasgos?.analisisVacios;
+      if (av && mapaBordesDataUrl) {
+        const cVac = document.createElement('canvas');
+        cVac.width = w;
+        cVac.height = h;
+        const ctxV = cVac.getContext('2d');
+        if (ctxV) {
+          ctxV.drawImage(canvas, 0, 0, w, h);
+          const [rx0, ry0, rx1, ry1] = av.cajaBbox || [0.08, 0.08, 0.92, 0.92];
+          const px0 = Math.round(rx0 * w);
+          const py0 = Math.round(ry0 * h);
+          const pw = Math.round((rx1 - rx0) * w);
+          const ph = Math.round((ry1 - ry0) * h);
+
+          const nivs = [...(av.nivelesDetectados || [])].reverse(); // De arriba hacia abajo para dibujar
+          const sumaP = nivs.reduce((a, n) => a + (n.proporcionAlto || 1), 0) || 1;
+          let yCur = py0;
+          nivs.forEach((n, idx) => {
+            const hN = Math.round(( (n.proporcionAlto || 1) / sumaP ) * ph);
+            const cols = Math.max(1, n.columnas || 1);
+            const wCol = Math.round(pw / cols);
+            for (let c = 0; c < cols; c++) {
+              const xCol = px0 + c * wCol;
+              if (n.tipoSeccion === 'hueco') {
+                ctxV.fillStyle = 'rgba(14, 165, 233, 0.24)';
+                ctxV.strokeStyle = '#0284c7';
+              } else if (n.tipoSeccion === 'cajon') {
+                ctxV.fillStyle = 'rgba(236, 72, 153, 0.24)';
+                ctxV.strokeStyle = '#be185d';
+              } else {
+                ctxV.fillStyle = 'rgba(245, 158, 11, 0.24)';
+                ctxV.strokeStyle = '#b45309';
+              }
+              ctxV.fillRect(xCol + 3, yCur + 3, Math.max(4, wCol - 6), Math.max(4, hN - 6));
+              ctxV.lineWidth = 2;
+              ctxV.setLineDash(n.tipoSeccion === 'hueco' ? [6, 4] : []);
+              ctxV.strokeRect(xCol + 3, yCur + 3, Math.max(4, wCol - 6), Math.max(4, hN - 6));
+              ctxV.setLineDash([]);
+
+              if (wCol > 48 && hN > 24) {
+                const etq = n.tipoSeccion === 'hueco' ? 'ESPACIO VACÍO / HUECO' : n.tipoSeccion === 'cajon' ? 'CAJÓN' : 'PUERTA';
+                ctxV.fillStyle = '#0f172a';
+                ctxV.fillRect(xCol + wCol / 2 - 58, yCur + hN / 2 - 9, 116, 18);
+                ctxV.fillStyle = n.tipoSeccion === 'hueco' ? '#38bdf8' : '#fde68a';
+                ctxV.font = 'bold 10px monospace';
+                ctxV.textAlign = 'center';
+                ctxV.fillText(etq, xCol + wCol / 2, yCur + hN / 2 + 3);
+              }
+            }
+            yCur += hN;
+          });
+          mapaVaciosDataUrl = cVac.toDataURL('image/jpeg', 0.88);
+        }
+      }
+    } catch {
+      mapaVaciosDataUrl = null;
+    }
+
     const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
     const coma = dataUrl.indexOf(',');
     return {
@@ -363,6 +431,7 @@ export function prepararImagenParaIA(imgElement, maxLado = 1280) {
       alto: hOrig,
       realzadaDataUrl: dataUrl,
       mapaBordesDataUrl,
+      mapaVaciosDataUrl,
     };
   } catch {
     return null;
@@ -476,7 +545,139 @@ export function extraerRasgosVisuales(imgElement) {
     const media = valores8x8.reduce((a, b) => a + b, 0) / 64;
     const huella = `${wOrig}x${hOrig}_` + valores8x8.map((v) => (v >= media ? '1' : '0')).join('');
 
-    return { wOrig, hOrig, relacionArchivo, relacionMueble, cuadrantes, celdas16, huella };
+    // 3. Análisis Pre-3D de Espacios Vacíos (Huecos, Vanos de patas, Fondo pasante) y Grilla Estructural 2D
+    const bx0 = Math.max(2, xMin < xMax ? xMin : 8);
+    const bx1 = Math.min(N - 3, xMax > xMin ? xMax : N - 8);
+    const by0 = Math.max(2, yMin < yMax ? yMin : 8);
+    const by1 = Math.min(N - 3, yMax > yMin ? yMax : N - 8);
+    const bw = Math.max(12, bx1 - bx0);
+    const bh = Math.max(12, by1 - by0);
+
+    let pixClaros = 0;
+    let satAcum = 0;
+    let pixVacioPasante = 0;
+    const totalBoxPix = bw * bh;
+    for (let y = by0; y < by1; y++) {
+      for (let x = bx0; x < bx1; x++) {
+        const idx = (y * N + x) * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+        const l = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (l > 215) pixClaros++;
+        satAcum += Math.abs(r - g) + Math.abs(g - b);
+        const dBg = Math.hypot(r - bgR, g - bgG, b - bgB);
+        if (dBg < 24) pixVacioPasante++;
+      }
+    }
+    const esDibujoEsquema = (pixClaros / totalBoxPix) >= 0.66 && (satAcum / totalBoxPix) < 24;
+    const porcentajeFondoPasante = Math.round((pixVacioPasante / totalBoxPix) * 100);
+
+    // Detectar líneas horizontales internas por proyección de gradiente vertical Gy
+    const perfilH = new Float32Array(bh);
+    for (let y = by0; y < by1; y++) {
+      let sumaGy = 0;
+      for (let x = bx0 + 2; x < bx1 - 2; x++) {
+        sumaGy += Math.abs(lum(x, y + 1) - lum(x, y - 1));
+      }
+      perfilH[y - by0] = sumaGy / Math.max(1, bw - 4);
+    }
+    const umbralH = Math.max(10, (perfilH.reduce((a, b) => a + b, 0) / bh) * 1.35);
+    const filasY = [by0];
+    const minSepY = Math.max(8, Math.round(bh * 0.15));
+    for (let ry = minSepY; ry < bh - minSepY; ry++) {
+      if (perfilH[ry] >= umbralH && perfilH[ry] >= perfilH[ry - 1] && perfilH[ry] >= perfilH[ry + 1]) {
+        const yAbs = by0 + ry;
+        if (yAbs - filasY[filasY.length - 1] >= minSepY) {
+          filasY.push(yAbs);
+        }
+      }
+    }
+    filasY.push(by1);
+
+    // Detectar si el tramo inferior es un vano abierto para patas / silla
+    const yInfCheck0 = Math.max(by0, Math.round(by1 - bh * 0.20));
+    let vacioInfCentro = 0, totalInfCentro = 0;
+    for (let y = yInfCheck0; y < by1; y++) {
+      for (let x = Math.round(bx0 + bw * 0.22); x < Math.round(bx1 - bw * 0.22); x++) {
+        const idx = (y * N + x) * 4;
+        if (Math.hypot(data[idx] - bgR, data[idx + 1] - bgG, data[idx + 2] - bgB) < 25) vacioInfCentro++;
+        totalInfCentro++;
+      }
+    }
+    const tieneVanoInferior = totalInfCentro > 0 && (vacioInfCentro / totalInfCentro) > 0.62;
+
+    // Clasificar cada nivel horizontal detectado (de abajo hacia arriba) en hueco vs cajón vs puerta
+    const nivelesDetectados = [];
+    const maxNiveles = Math.min(6, filasY.length - 1);
+    for (let i = maxNiveles - 1; i >= 0; i--) {
+      const y0 = filasY[i];
+      const y1 = filasY[i + 1];
+      const hNiv = Math.max(4, y1 - y0);
+
+      // Contar divisiones verticales en este nivel
+      let colsNivel = 1;
+      const minSepX = Math.max(10, Math.round(bw * 0.22));
+      let xUlt = bx0;
+      for (let x = bx0 + minSepX; x < bx1 - minSepX; x++) {
+        let sumaGx = 0;
+        for (let y = y0 + 2; y < y1 - 2; y++) {
+          sumaGx += Math.abs(lum(x + 1, y) - lum(x - 1, y));
+        }
+        if (sumaGx / Math.max(1, hNiv - 4) > 16 && x - xUlt >= minSepX) {
+          colsNivel++;
+          xUlt = x;
+          if (colsNivel >= 4) break;
+        }
+      }
+
+      // Evaluar sombra superior interior (típica de hueco abierto) y presencia de pomo/tirador central
+      let lumSup = 0, cntSup = 0, lumMed = 0, cntMed = 0, gradCentro = 0, cntCentro = 0, simBg = 0;
+      for (let y = y0 + 1; y < y1 - 1; y++) {
+        const relY = (y - y0) / hNiv;
+        for (let x = bx0 + 2; x < bx1 - 2; x++) {
+          const relX = (x - bx0) / bw;
+          const l = lum(x, y);
+          const idx = (y * N + x) * 4;
+          if (Math.hypot(data[idx] - bgR, data[idx + 1] - bgG, data[idx + 2] - bgB) < 24) simBg++;
+          if (relY < 0.28) { lumSup += l; cntSup++; }
+          else if (relY >= 0.32 && relY <= 0.72) { lumMed += l; cntMed++; }
+          if (relY >= 0.32 && relY <= 0.68 && relX >= 0.30 && relX <= 0.70) {
+            gradCentro += Math.abs(lum(x + 1, y) - lum(x - 1, y)) + Math.abs(lum(x, y + 1) - lum(x, y - 1));
+            cntCentro++;
+          }
+        }
+      }
+      const sombraInterior = (cntMed ? lumMed / cntMed : 200) - (cntSup ? lumSup / cntSup : 200);
+      const fracBg = simBg / Math.max(1, (hNiv - 2) * (bw - 4));
+      const pomoScore = cntCentro ? gradCentro / cntCentro : 0;
+
+      let tipoSeccion = 'hueco';
+      if (sombraInterior > 7 || (fracBg > 0.52 && pomoScore < 14)) {
+        tipoSeccion = 'hueco';
+      } else if (pomoScore >= 14) {
+        const aspectCelda = (bw / colsNivel) / hNiv;
+        tipoSeccion = aspectCelda >= 1.15 ? 'cajon' : 'puertas';
+      }
+
+      nivelesDetectados.push({
+        ubicacionVertical: nivelesDetectados.length === 0 ? 'inferior' : i === 0 ? 'superior' : 'intermedio',
+        tipoSeccion,
+        columnas: colsNivel,
+        filasApiladas: 1,
+        proporcionAlto: Number(Math.max(0.35, hNiv / (bh / maxNiveles)).toFixed(2)),
+        sombraInterior: Math.round(sombraInterior),
+        fracVacio: Number(fracBg.toFixed(2)),
+      });
+    }
+
+    const analisisVacios = {
+      esDibujoEsquema,
+      porcentajeFondoPasante,
+      tieneVanoInferior,
+      cajaBbox: [bx0 / N, by0 / N, bx1 / N, by1 / N],
+      nivelesDetectados,
+    };
+
+    return { wOrig, hOrig, relacionArchivo, relacionMueble, cuadrantes, celdas16, huella, analisisVacios };
   } catch {
     return { wOrig, hOrig, relacionArchivo, relacionMueble: relacionArchivo, cuadrantes: null, huella: null };
   }
@@ -511,8 +712,12 @@ export async function analizarConGemini(imagen, apiKey, rasgosVisuales = null) {
     if (enCache) return normalizarResultadoIA(enCache, enCache.fuente || 'Gemini IA (caché)', rasgosVisuales);
   }
 
+  const av = rasgosVisuales?.analisisVacios;
+  const infoVacios = av
+    ? ` Tipo de imagen: ${av.esDibujoEsquema ? 'DIBUJO ESQUEMA / CROQUIS LINEAL' : 'FOTOGRAFÍA'}. Fondo pasante/vacío interior: ${av.porcentajeFondoPasante}%. Vano inferior de patas detectado: ${av.tieneVanoInferior ? 'SÍ' : 'NO'}. Niveles pre-segmentados (abajo→arriba): ${(av.nivelesDetectados || []).map((n, i) => `N${i + 1}:${n.tipoSeccion}(${n.columnas}col)`).join(', ')}.`
+    : '';
   const pistaVisual = rasgosVisuales?.relacionMueble
-    ? `\nNota de pre-análisis visual: la silueta detectada del mueble tiene razón ancho/alto ≈ ${rasgosVisuales.relacionMueble} (resolución ${rasgosVisuales.wOrig}×${rasgosVisuales.hOrig} px).`
+    ? `\nNota de pre-análisis visual: la silueta detectada del mueble tiene razón ancho/alto ≈ ${rasgosVisuales.relacionMueble} (resolución ${rasgosVisuales.wOrig}×${rasgosVisuales.hOrig} px).${infoVacios}`
     : '';
 
   const body = JSON.stringify({
@@ -1989,36 +2194,43 @@ export function analizarImagenLocal(imgElement, nombreArchivo = '') {
     if (enCache) return normalizarResultadoIA(enCache, enCache.fuente || 'Reconocido en caché', rasgos);
   }
 
-  // 3. Estimación geométrica basada en la caja delimitadora real del mueble
+  // 3. Interpretación geométrica Pre-3D basada en grilla 2D y detector de espacios vacíos
   const esAlto = relacionMueble < 0.68;
   const esAncho = relacionMueble > 1.25;
   const ancho = esAlto ? 800 : esAncho ? 1200 : 600;
   const alto = Math.max(500, Math.min(2000, Math.round(ancho / Math.max(0.4, relacionMueble))));
+  const av = rasgos?.analisisVacios;
+  const seccionesPre3D = Array.isArray(av?.nivelesDetectados) && av.nivelesDetectados.length >= 1
+    ? av.nivelesDetectados
+    : esAlto
+      ? [
+          { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 1, filasApiladas: 3, proporcionAlto: 1 },
+          { ubicacionVertical: 'superior', tipoSeccion: 'cajon', columnas: 2, filasApiladas: 1, proporcionAlto: 0.9 },
+        ]
+      : [
+          { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 1, filasApiladas: 1, proporcionAlto: 1.3 },
+          { ubicacionVertical: 'superior', tipoSeccion: 'cajon', columnas: 1, filasApiladas: 1, proporcionAlto: 1 },
+        ];
+  const nHuecosDet = seccionesPre3D.filter((s) => s.tipoSeccion === 'hueco').length;
 
   return normalizarResultadoIA(
     {
       categoriaMueble: esAlto ? 'estante_librero' : 'cajonera',
       subtipo: 'estandar',
-      nombreMueble: 'Analizando estructura con Gemini IA...',
+      nombreMueble: av?.esDibujoEsquema
+        ? `Esquema lineal reconocido (${seccionesPre3D.length} niveles · ${nHuecosDet} espacio(s) vacío(s))`
+        : 'Estructura pre-analizada (Espacios vacíos + Croquis 2D)',
       tieneMedidasEscritas: false,
       anchoDetectadoMm: ancho,
       altoDetectadoMm: alto,
       profundidadDetectadaMm: 450,
-      alturaPatasMm: 0,
-      tieneFondo: true,
-      secciones: esAlto
-        ? [
-            { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 1, filasApiladas: 3, proporcionAlto: 1 },
-            { ubicacionVertical: 'superior', tipoSeccion: 'cajon', columnas: 2, filasApiladas: 1, proporcionAlto: 0.9 },
-          ]
-        : [
-            { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 1, filasApiladas: 1, proporcionAlto: 1.3 },
-            { ubicacionVertical: 'superior', tipoSeccion: 'cajon', columnas: 1, filasApiladas: 1, proporcionAlto: 1 },
-          ],
+      alturaPatasMm: av?.tieneVanoInferior ? 120 : 0,
+      tieneFondo: (av?.porcentajeFondoPasante || 0) < 45,
+      secciones: seccionesPre3D,
       relacionAnchoAlto: relacionMueble,
-      descripcion: 'Pre-análisis geométrico 2D completado. Consultando a Gemini IA para descomponer cada sección...',
+      descripcion: `Pre-análisis 2D de espacios vacíos (${nHuecosDet} nivel(es) abiertos, ${av?.porcentajeFondoPasante || 0}% fondo pasante) convertido a Croquis Técnico 2D antes de generar el modelo 3D.`,
     },
-    'Pre-análisis local 2D',
+    av?.esDibujoEsquema ? 'Esquema → Croquis 2D → 3D' : 'Pre-análisis 2D + Espacios Vacíos',
     rasgos,
   );
 }
