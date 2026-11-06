@@ -7,7 +7,7 @@
   <title>SmartFurniture — Reconocimiento, Despiece y Escalamiento 3D</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./css/estilos.css?v=22">
+  <link rel="stylesheet" href="./css/estilos.css?v=23">
   <script type="importmap">
   {
     "imports": {
@@ -230,7 +230,19 @@
       </div>
     </section>
 
-    <!-- PASO 3: MODELO 3D Y ESCALAMIENTO CON EL DEDO (FACTOR k) -->
+        <!-- PASO 2.5: INSTRUCCIONES DE ARMADO PASO A PASO Y UBICACIÓN DE TORNILLOS -->
+    <section class="paso-card" aria-labelledby="titulo-armado" style="border-color:#10b981">
+      <h2 class="paso-titulo" id="titulo-armado">
+        <span class="paso-num" style="background:#10b981">2.5</span>
+        Instrucciones de Armado Paso a Paso y Dónde van los Tornillos
+      </h2>
+      <p class="texto-suave" style="margin-top:0">
+        Guía automática de taller: muestra a qué distancia perforar cada tornillo Soberbio (<strong>4×50 mm</strong> a <strong>9 mm</strong> del canto y <strong>50 mm</strong> de los bordes), las alturas exactas de cada repisa y el orden de ensamble.
+      </p>
+      <div id="contenedor-manual-armado"></div>
+    </section>
+
+<!-- PASO 3: MODELO 3D Y ESCALAMIENTO CON EL DEDO (FACTOR k) -->
     <section class="paso-card" aria-labelledby="titulo-paso-3">
       <h2 class="paso-titulo" id="titulo-paso-3">
         <span class="paso-num">3</span>
@@ -295,6 +307,10 @@
           <label for="check-transparentar">
             <input id="check-transparentar" type="checkbox">
             Transparentar frentes
+          </label>
+          <label for="check-tornillos-3d" style="color:#fca5a5;font-weight:600">
+            <input id="check-tornillos-3d" type="checkbox" checked>
+            🔩 Mostrar dónde van los tornillos
           </label>
           <button id="btn-centrar-3d" type="button" class="btn-secundario">Centrar 3D</button>
         </div>
@@ -381,6 +397,6 @@
       });
     }
   </script>
-  <script type="module" src="./js/ui/app.js?v=22"></script>
+  <script type="module" src="./js/ui/app.js?v=23"></script>
 </body>
 </html>

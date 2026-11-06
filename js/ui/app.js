@@ -10,10 +10,10 @@
  *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
  *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=22';
-import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=22';
-import { calcularProyecto } from '../core/sistema.js?v=22';
-import { tapacantoPorFila } from '../core/calculos.js?v=22';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=23';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=23';
+import { calcularProyecto } from '../core/sistema.js?v=23';
+import { tapacantoPorFila } from '../core/calculos.js?v=23';
 import {
   analizarConGemini,
   analizarImagenLocal,
@@ -21,15 +21,16 @@ import {
   prepararImagenParaIA,
   extraerRasgosVisuales,
   CROQUIS_EJEMPLO,
-} from '../ia/analizador.js?v=22';
-import { mapaColoresPorFila } from './colores.js?v=22';
-import { renderizarPlanosCorte } from './planoCorte.js?v=22';
-import { Visor3D } from './visor3d.js?v=22';
+} from '../ia/analizador.js?v=23';
+import { mapaColoresPorFila } from './colores.js?v=23';
+import { renderizarPlanosCorte } from './planoCorte.js?v=23';
+import { Visor3D } from './visor3d.js?v=23';
 import {
   generarCroquisTecnicoSVG,
   calcularEspaciosVaciosFrontales,
   inicializarPizarraEsquema,
-} from './croquis2d.js?v=22';
+  generarManualArmadoHTML,
+} from './croquis2d.js?v=23';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 
@@ -709,6 +710,9 @@ function recalcular() {
     renderizarPlanosCorte($('contenedor-planos'), resultado.corte, resultado.despiece.filas);
     renderizarTablaDespiece(resultado.despiece);
     renderizarHerrajesYCostos(resultado.herrajes, resultado.totales);
+    if ($('contenedor-manual-armado')) {
+      $('contenedor-manual-armado').innerHTML = generarManualArmadoHTML(resultado.mueble, resultado.despiece);
+    }
     renderizarExplicacionMatematica(resultado);
   } catch (err) {
     cajaError.hidden = false;
@@ -799,6 +803,9 @@ function inicializarEventos() {
   });
   $('check-transparentar').addEventListener('change', (ev) => {
     estado.visor.setTransparentarFrentes(ev.target.checked);
+  });
+  $('check-tornillos-3d')?.addEventListener('change', (ev) => {
+    estado.visor.setMostrarTornillos(ev.target.checked);
   });
   $('btn-centrar-3d').addEventListener('click', () => {
     estado.visor.reiniciarCamara();

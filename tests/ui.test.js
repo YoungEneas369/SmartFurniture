@@ -5,7 +5,7 @@ import { calcularProyecto } from '../js/core/sistema.js';
 import { normalizarResultadoIA, CROQUIS_EJEMPLO, CATALOGO_ALBUM_MUEBLES } from '../js/ia/analizador.js';
 import { renderizarPlanosCorte } from '../js/ui/planoCorte.js';
 import { mapaColoresPorFila } from '../js/ui/colores.js';
-import { calcularEspaciosVaciosFrontales, generarCroquisTecnicoSVG } from '../js/ui/croquis2d.js';
+import { calcularEspaciosVaciosFrontales, generarCroquisTecnicoSVG, calcularUnionesYTornillos, generarManualArmadoHTML } from '../js/ui/croquis2d.js';
 
 test('los 12 muebles del álbum Muebles y Descargas producen modelos 3D sin colisiones y planos de corte válidos', () => {
   for (const item of CATALOGO_ALBUM_MUEBLES) {
@@ -140,5 +140,9 @@ test('Croquis Técnico 2D y detector de espacios vacíos generan vistas válidas
       tieneFondo: ia.tieneFondo,
     });
     assert.ok(svg.includes('<svg') && svg.includes('VISTA FRONTAL ACOTADA'), `${item.id}: debe generar Croquis 2D SVG`);
+    const uniones = calcularUnionesYTornillos(r.mueble);
+    assert.ok(uniones.puntos.length >= 2, `${item.id}: debe calcular coordenadas 3D de tornillos/herrajes`);
+    const manual = generarManualArmadoHTML(r.mueble, r.despiece);
+    assert.ok(manual.includes('PASO 1') && manual.includes('Tornillos Soberbio'), `${item.id}: debe generar manual de armado paso a paso`);
   }
 });

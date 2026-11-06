@@ -151,6 +151,339 @@ export function calcularEspaciosVaciosFrontales(mueble) {
 /**
  * Genera el SVG del Croquis Técnico 2D (Vista Frontal + Vista Lateral + Mapa de Espacios Vacíos).
  */
+
+/**
+ * Calcula matemáticamente en ℝ³ dónde van los tornillos Soberbio (4×50 mm),
+ * bisagras cazoleta (35 mm) y correderas telescópicas a partir del contacto
+ * geométrico entre las piezas del mueble.
+ */
+export function calcularUnionesYTornillos(mueble) {
+  const piezas = Array.isArray(mueble?.piezas) ? mueble.piezas : [];
+  const W = Number(mueble?.params?.ancho) || 600;
+  const puntos = [];
+  const unionesResumen = [];
+
+  const estructurales = piezas.filter((p) => p.grupo === 'estructura' || p.grupo === 'repisa');
+
+  for (let i = 0; i < estructurales.length; i++) {
+    for (let j = i + 1; j < estructurales.length; j++) {
+      const A = estructurales[i];
+      const B = estructurales[j];
+      const [ax0, ay0, az0] = A.pos;
+      const [adx, ady, adz] = A.tam;
+      const ax1 = ax0 + adx, ay1 = ay0 + ady, az1 = az0 + adz;
+
+      const [bx0, by0, bz0] = B.pos;
+      const [bdx, bdy, bdz] = B.tam;
+      const bx1 = bx0 + bdx, by1 = by0 + bdy, bz1 = bz0 + bdz;
+
+      // Solapamiento en profundidad Z
+      const zIni = Math.max(az0, bz0);
+      const zFin = Math.min(az1, bz1);
+      const solapaZ = zFin - zIni;
+      if (solapaZ < 14) continue;
+
+      const zsTornillos =
+        solapaZ >= 550
+          ? [zIni + 50, Math.round((zIni + zFin) / 2), zFin - 50]
+          : solapaZ >= 120
+            ? [zIni + 45, zFin - 45]
+            : [Math.round((zIni + zFin) / 2)];
+
+      // CASO 1: Contacto lateral en X (una pieza horizontal topa contra una pieza vertical de ~18 mm)
+      const aEsVert = adx <= 22 && ady >= 40;
+      const bEsVert = bdx <= 22 && bdy >= 40;
+      const aEsHoriz = ady <= 22 && adx >= 40;
+      const bEsHoriz = bdy <= 22 && bdx >= 40;
+
+      const tocaX_AB = Math.abs(ax1 - bx0) <= 1.5;
+      const tocaX_BA = Math.abs(bx1 - ax0) <= 1.5;
+      const yIni = Math.max(ay0, by0);
+      const yFin = Math.min(ay1, by1);
+
+      if ((tocaX_AB || tocaX_BA) && yFin - yIni >= 12) {
+        if (aEsVert && bEsHoriz) {
+          const xExterior = tocaX_AB ? ax0 : ax1;
+          const yCentro = Math.round(by0 + bdy / 2);
+          zsTornillos.forEach((zT) => {
+            puntos.push({
+              tipo: 'tornillo',
+              eje: 'X',
+              pos: [xExterior, yCentro, zT],
+              piezaPasante: A.nombre,
+              piezaReceptora: B.nombre,
+              regla: `Perforar por ${A.nombre} a Y=${yCentro} mm (mitad del canto de 18 mm) y Z=${Math.round(zT - zIni)} mm del borde`,
+            });
+          });
+          unionesResumen.push({
+            tipo: 'Unión en X (Tornillo Soberbio 4×50 mm)',
+            desde: A.nombre,
+            hacia: B.nombre,
+            cantidad: zsTornillos.length,
+            alturaY: yCentro,
+            posX: Math.round(tocaX_AB ? ax1 : ax0),
+          });
+        } else if (bEsVert && aEsHoriz) {
+          const xExterior = tocaX_AB ? bx1 : bx0;
+          const yCentro = Math.round(ay0 + ady / 2);
+          zsTornillos.forEach((zT) => {
+            puntos.push({
+              tipo: 'tornillo',
+              eje: 'X',
+              pos: [xExterior, yCentro, zT],
+              piezaPasante: B.nombre,
+              piezaReceptora: A.nombre,
+              regla: `Perforar por ${B.nombre} a Y=${yCentro} mm (mitad del canto de 18 mm) y Z=${Math.round(zT - zIni)} mm del borde`,
+            });
+          });
+          unionesResumen.push({
+            tipo: 'Unión en X (Tornillo Soberbio 4×50 mm)',
+            desde: B.nombre,
+            hacia: A.nombre,
+            cantidad: zsTornillos.length,
+            alturaY: yCentro,
+            posX: Math.round(tocaX_AB ? ax1 : ax0),
+          });
+        }
+      }
+
+      // CASO 2: Contacto vertical en Y (un montante/lateral vertical topa contra base/cubierta/repisa horizontal)
+      const tocaY_AB = Math.abs(ay1 - by0) <= 1.5;
+      const tocaY_BA = Math.abs(by1 - ay0) <= 1.5;
+      const xIni = Math.max(ax0, bx0);
+      const xFin = Math.min(ax1, bx1);
+
+      if ((tocaY_AB || tocaY_BA) && xFin - xIni >= 12) {
+        if (aEsHoriz && bEsVert) {
+          const yExterior = tocaY_AB ? ay0 : ay1;
+          const xCentro = Math.round(bx0 + bdx / 2);
+          zsTornillos.forEach((zT) => {
+            puntos.push({
+              tipo: 'tornillo',
+              eje: 'Y',
+              pos: [xCentro, yExterior, zT],
+              piezaPasante: A.nombre,
+              piezaReceptora: B.nombre,
+              regla: `Perforar verticalmente por ${A.nombre} a X=${xCentro} mm y Z=${Math.round(zT - zIni)} mm`,
+            });
+          });
+          unionesResumen.push({
+            tipo: 'Unión en Y (Tornillo Soberbio 4×50 mm)',
+            desde: A.nombre,
+            hacia: B.nombre,
+            cantidad: zsTornillos.length,
+            alturaY: Math.round(yExterior),
+            posX: xCentro,
+          });
+        } else if (bEsHoriz && aEsVert) {
+          const yExterior = tocaY_AB ? by1 : by0;
+          const xCentro = Math.round(ax0 + adx / 2);
+          zsTornillos.forEach((zT) => {
+            puntos.push({
+              tipo: 'tornillo',
+              eje: 'Y',
+              pos: [xCentro, yExterior, zT],
+              piezaPasante: B.nombre,
+              piezaReceptora: A.nombre,
+              regla: `Perforar verticalmente por ${B.nombre} a X=${xCentro} mm y Z=${Math.round(zT - zIni)} mm`,
+            });
+          });
+          unionesResumen.push({
+            tipo: 'Unión en Y (Tornillo Soberbio 4×50 mm)',
+            desde: B.nombre,
+            hacia: A.nombre,
+            cantidad: zsTornillos.length,
+            alturaY: Math.round(yExterior),
+            posX: xCentro,
+          });
+        }
+      }
+    }
+  }
+
+  // CASO 3: Bisagras Cazoleta 35 mm en cada puerta
+  for (const p of piezas) {
+    if (p.grupo === 'puerta') {
+      const [px, py, pz] = p.pos;
+      const [pdx, pdy] = p.tam;
+      const abreIzq = px + pdx / 2 <= W / 2;
+      const xBis = abreIzq ? px + 22 : px + pdx - 22;
+      const margenY = Math.min(95, Math.max(45, Math.round(pdy * 0.16)));
+      const ysBis = pdy >= 1000
+        ? [py + margenY, Math.round(py + pdy / 2), py + pdy - margenY]
+        : [py + margenY, py + pdy - margenY];
+      ysBis.forEach((yB) => {
+        puntos.push({
+          tipo: 'bisagra',
+          eje: 'Z',
+          pos: [xBis, yB, pz],
+          piezaPasante: p.nombre,
+          piezaReceptora: 'Lateral soporte',
+          regla: `Copa cazoleta Ø35 mm a ${margenY} mm del borde superior/inferior y 22 mm del canto de la puerta`,
+        });
+      });
+    } else if (p.grupo === 'frente') {
+      const [px, py, pz] = p.pos;
+      const [pdx, pdy] = p.tam;
+      const yMed = Math.round(py + pdy / 2);
+      puntos.push(
+        {
+          tipo: 'corredera',
+          eje: 'X',
+          pos: [px + 6, yMed, Math.max(20, pz - 120)],
+          piezaPasante: p.nombre,
+          piezaReceptora: 'Costado izquierdo cajón',
+          regla: `Riel corredera telescópica nivelado a Y=${yMed} mm`,
+        },
+        {
+          tipo: 'corredera',
+          eje: 'X',
+          pos: [px + pdx - 6, yMed, Math.max(20, pz - 120)],
+          piezaPasante: p.nombre,
+          piezaReceptora: 'Costado derecho cajón',
+          regla: `Riel corredera telescópica nivelado a Y=${yMed} mm`,
+        },
+      );
+    }
+  }
+
+  return { puntos, unionesResumen };
+}
+
+/**
+ * Genera el Manual / Instrucciones de Armado Paso a Paso (estilo IKEA / taller de melamina)
+ * con medidas exactas de perforación de tornillos y secuencia de ensamble.
+ */
+export function generarManualArmadoHTML(mueble, despiece) {
+  if (!mueble || !despiece) return '';
+  const { ancho: W, alto: H, profundidad: D } = mueble.params;
+  const { puntos, unionesResumen } = calcularUnionesYTornillos(mueble);
+  const nTornillos = puntos.filter((p) => p.tipo === 'tornillo').length;
+  const nBisagras = puntos.filter((p) => p.tipo === 'bisagra').length;
+  const nCorrederas = Math.round(puntos.filter((p) => p.tipo === 'corredera').length / 2);
+  const tieneFondo = (mueble.piezas || []).some((p) => p.grupo === 'fondo');
+
+  // Alturas Y donde van atornilladas las repisas y bases horizontales
+  const repisasHoriz = (mueble.piezas || [])
+    .filter((p) => p.grupo === 'repisa' || (p.grupo === 'estructura' && p.tam[1] <= 22 && p.tam[0] >= 120))
+    .sort((a, b) => a.pos[1] - b.pos[1]);
+
+  const listaAlturas = repisasHoriz
+    .slice(0, 8)
+    .map(
+      (r) =>
+        `<li><strong>${ESC(r.nombre)}</strong> (${Math.round(r.tam[0])}×${Math.round(r.tam[2])} mm): marcar línea de eje a <strong>Y = ${Math.round(r.pos[1] + r.tam[1] / 2)} mm</strong> desde la base (tablero entre ${Math.round(r.pos[1])} y ${Math.round(r.pos[1] + r.tam[1])} mm).</li>`,
+    )
+    .join('');
+
+  return `
+    <div class="manual-armado-grid">
+      <!-- Encabezado resumen de fijaciones -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 12px;background:#0b1120;border:1px solid #26354d;border-radius:10px;margin-bottom:12px">
+        <div>
+          <strong style="color:#38bdf8;font-size:0.95rem">🛠️ Secuencia de Armado Paso a Paso y Ubicación de Tornillos (${W}×${H}×${D} mm)</strong>
+          <div class="texto-suave" style="font-size:0.8rem">Calculado geométricamente sobre las uniones de contacto en melamina de 18 mm</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.8rem">
+          <span style="padding:4px 9px;background:#dc262622;border:1px solid #ef4444;border-radius:999px;color:#fca5a5;font-weight:700">
+            ⊕ ${nTornillos} Tornillos Soberbio 4×50 mm
+          </span>
+          ${
+            nBisagras > 0
+              ? `<span style="padding:4px 9px;background:#05966922;border:1px solid #10b981;border-radius:999px;color:#6ee7b7;font-weight:700">
+                  ◉ ${nBisagras} Bisagras Cazoleta 35 mm
+                </span>`
+              : ''
+          }
+          ${
+            nCorrederas > 0
+              ? `<span style="padding:4px 9px;background:#d9770622;border:1px solid #f59e0b;border-radius:999px;color:#fde68a;font-weight:700">
+                  ⇄ ${nCorrederas} Par(es) Correderas
+                </span>`
+              : ''
+          }
+        </div>
+      </div>
+
+      <!-- Esquema visual SVG de la Regla de Perforación en 18 mm -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:12px;margin-bottom:12px">
+        <div class="card-mate" style="border-color:#ef4444">
+          <h4 style="margin:0 0 6px;color:#fca5a5">⊕ Regla de Oro: ¿Dónde perforar cada Tornillo Soberbio?</h4>
+          <svg viewBox="0 0 320 115" width="100%" style="background:#0f172a;border-radius:8px;border:1px solid #1e293b;margin-bottom:6px">
+            <!-- Tablero vertical 18mm -->
+            <rect x="35" y="12" width="26" height="92" fill="#cbd5e1" stroke="#0f172a" stroke-width="1.5"/>
+            <!-- Repisa horizontal 18mm -->
+            <rect x="61" y="45" width="190" height="26" fill="#7dd3fc" stroke="#0f172a" stroke-width="1.5"/>
+            <!-- Eje central 9mm -->
+            <line x1="15" y1="58" x2="265" y2="58" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4,3"/>
+            <!-- Tornillo Soberbio -->
+            <line x1="22" y1="58" x2="115" y2="58" stroke="#dc2626" stroke-width="3.5"/>
+            <polygon points="20,51 20,65 28,58" fill="#dc2626"/>
+            <circle cx="35" cy="58" r="5" fill="none" stroke="#ef4444" stroke-width="1.8"/>
+            <text x="125" y="38" fill="#f8fafc" font-size="10" font-weight="bold" font-family="monospace">Espesor e = 18 mm → Centro a 9 mm</text>
+            <text x="125" y="88" fill="#fca5a5" font-size="9.5" font-family="monospace">A 50 mm del borde frontal y 50 mm del trasero</text>
+          </svg>
+          <p class="texto-suave" style="margin:0;font-size:0.79rem">
+            Usa <strong>broca guía de 3 mm con avellanador</strong>. Marca siempre a <strong>9 mm</strong> del canto (centro del tablero de 18 mm) y a <strong>45–50 mm</strong> desde el frente y desde la espalda para no rajar la melamina.
+          </p>
+        </div>
+
+        <div class="card-mate" style="border-color:#38bdf8">
+          <h4 style="margin:0 0 6px;color:#38bdf8">📏 Alturas Exactas de Fijación (Eje Y desde el suelo)</h4>
+          <ul style="margin:0;padding-left:18px;font-size:0.8rem;color:#e2e8f0;line-height:1.55">
+            ${listaAlturas || '<li>Unir cubierta superior con las 4 patas/soportes perimetrales a 9 mm del canto.</li>'}
+          </ul>
+        </div>
+      </div>
+
+      <!-- Pasos numerados de armado -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:10px">
+        <div class="card-mate">
+          <strong style="color:#34d399;font-size:0.86rem">PASO 1 · Pre-perforado y Tarugos</strong>
+          <p style="margin:5px 0 0;font-size:0.8rem;color:#cbd5e1">
+            Identifica las piezas según su código <code>[P1, P2...]</code> en la tabla de despiece. En los laterales verticales, traza con escuadra las líneas horizontales a las alturas indicadas arriba y perfora con broca de <strong>4 mm pasante</strong> a <strong>50 mm del borde delantero y trasero</strong>.
+          </p>
+        </div>
+
+        <div class="card-mate">
+          <strong style="color:#34d399;font-size:0.86rem">PASO 2 · Armado del Carcasaje Principal</strong>
+          <p style="margin:5px 0 0;font-size:0.8rem;color:#cbd5e1">
+            Apoya los costados sobre una superficie plana protegida. Fija primero la <strong>base inferior</strong> y la <strong>cubierta superior</strong> usando <strong>2 tornillos Soberbio 4×50 mm + 2 tarugos 8×35 mm</strong> por cada unión (${unionesResumen.length} uniones estructurales en total).
+          </p>
+        </div>
+
+        <div class="card-mate">
+          <strong style="color:#34d399;font-size:0.86rem">PASO 3 · Divisiones y Repisas Interiores</strong>
+          <p style="margin:5px 0 0;font-size:0.8rem;color:#cbd5e1">
+            Inserta las divisiones verticales intermedias y atorníllalas desde las repisas/bases a <strong>9 mm del centro del espesor</strong>. Luego fija las repisas horizontales verificando con escuadra que formen <strong>90° exactos</strong>.
+          </p>
+        </div>
+
+        <div class="card-mate">
+          <strong style="color:#34d399;font-size:0.86rem">PASO 4 · ${tieneFondo ? 'Cuadratura y Fondo HDF 3 mm' : 'Rigidización y Frentes'}</strong>
+          <p style="margin:5px 0 0;font-size:0.8rem;color:#cbd5e1">
+            ${
+              tieneFondo
+                ? 'Mide ambas diagonales del mueble con huincha; cuando midan exactamente lo mismo, clava o atornilla el <strong>Fondo de 3 mm</strong> cada 15 cm por todo el perímetro trasero.'
+                : 'Verifica que las diagonales del mueble sean iguales antes de dar el apriete final a los tornillos Soberbio.'
+            }
+            ${
+              nBisagras > 0
+                ? `<br><strong>Puertas:</strong> Perfora copa Ø35 mm a <strong>22 mm del canto</strong> y a <strong>95 mm</strong> de los extremos superior/inferior.`
+                : ''
+            }
+            ${
+              nCorrederas > 0
+                ? `<br><strong>Cajones:</strong> Fija los rieles telescópicos a <strong>13 mm por lado</strong> dejando <strong>2 mm de holgura</strong> entre frentes.`
+                : ''
+            }
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export function generarCroquisTecnicoSVG(mueble, opciones = {}) {
   if (!mueble || !mueble.params) return '';
   const { ancho: W, alto: H, profundidad: D } = mueble.params;
@@ -183,7 +516,47 @@ export function generarCroquisTecnicoSVG(mueble, opciones = {}) {
   const sx = (zMm) => (xSide0 + zMm * esc).toFixed(1);
 
   const vacios = calcularEspaciosVaciosFrontales(mueble);
+  const { puntos: puntosHerrajes } = calcularUnionesYTornillos(mueble);
   const piezas = mueble.piezas || [];
+
+  // Renderizar marcadores de Tornillos Soberbio (⊕) y Bisagras (◉) en Vista Frontal y Perfil Lateral
+  const svgTornillosFront = puntosHerrajes
+    .map((pt) => {
+      const [px, py] = pt.pos;
+      const cx = Number(fx(px)).toFixed(1);
+      const cy = Number(fy(py)).toFixed(1);
+      if (pt.tipo === 'bisagra') {
+        return `
+          <g class="croquis-bisagra" title="${ESC(pt.regla)}">
+            <circle cx="${cx}" cy="${cy}" r="5.2" fill="#10b981" fill-opacity="0.28" stroke="#047857" stroke-width="1.5"/>
+            <circle cx="${cx}" cy="${cy}" r="2" fill="#047857"/>
+          </g>`;
+      }
+      if (pt.tipo === 'corredera') {
+        return `<rect x="${(Number(cx) - 3).toFixed(1)}" y="${(Number(cy) - 2).toFixed(1)}" width="6" height="4" fill="#f59e0b" stroke="#78350f" stroke-width="1"/>`;
+      }
+      return `
+        <g class="croquis-tornillo" title="${ESC(pt.regla)}">
+          <circle cx="${cx}" cy="${cy}" r="4.2" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+          <line x1="${(Number(cx) - 3.2).toFixed(1)}" y1="${cy}" x2="${(Number(cx) + 3.2).toFixed(1)}" y2="${cy}" stroke="#dc2626" stroke-width="1.2"/>
+          <line x1="${cx}" y1="${(Number(cy) - 3.2).toFixed(1)}" x2="${cx}" y2="${(Number(cy) + 3.2).toFixed(1)}" stroke="#dc2626" stroke-width="1.2"/>
+        </g>`;
+    })
+    .join('');
+
+  const svgTornillosSide = puntosHerrajes
+    .filter((pt) => pt.tipo === 'tornillo')
+    .map((pt) => {
+      const [, py, pz] = pt.pos;
+      const cx = Number(sx(pz)).toFixed(1);
+      const cy = Number(fy(py)).toFixed(1);
+      return `
+        <g class="croquis-tornillo-lat">
+          <circle cx="${cx}" cy="${cy}" r="3.6" fill="#fee2e2" stroke="#dc2626" stroke-width="1.3"/>
+          <circle cx="${cx}" cy="${cy}" r="1.2" fill="#dc2626"/>
+        </g>`;
+    })
+    .join('');
 
   // 1. Renderizar Espacios Vacíos (Huecos abiertos, vanos de patas/silla y recortes escalonados)
   const svgVacios = vacios
@@ -357,9 +730,10 @@ export function generarCroquisTecnicoSVG(mueble, opciones = {}) {
       <rect x="${xFront0.toFixed(1)}" y="${yTop0.toFixed(1)}" width="${wFrontPx.toFixed(1)}" height="${hPx.toFixed(1)}"
             fill="#ffffff" fill-opacity="0.7" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,4"/>
 
-      <!-- Capas Vista Frontal: 1. Espacios Vacíos achurados, 2. Tableros, Puertas y Cajones -->
+      <!-- Capas Vista Frontal: 1. Espacios Vacíos achurados, 2. Tableros, Puertas y Cajones, 3. Tornillos y Bisagras -->
       ${svgVacios}
       ${svgPiezasFront}
+      ${svgTornillosFront}
 
       <!-- Cota Horizontal Ancho W -->
       <line x1="${xFront0.toFixed(1)}" y1="${(yBot0 + 20).toFixed(1)}" x2="${(xFront0 + wFrontPx).toFixed(1)}" y2="${(yBot0 + 20).toFixed(1)}"
@@ -380,6 +754,7 @@ export function generarCroquisTecnicoSVG(mueble, opciones = {}) {
       <rect x="${xSide0.toFixed(1)}" y="${yTop0.toFixed(1)}" width="${dSidePx.toFixed(1)}" height="${hPx.toFixed(1)}"
             fill="#ffffff" fill-opacity="0.7" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,4"/>
       ${svgPiezasSide}
+      ${svgTornillosSide}
 
       <!-- Cota Horizontal Profundidad D -->
       <line x1="${xSide0.toFixed(1)}" y1="${(yBot0 + 20).toFixed(1)}" x2="${(xSide0 + dSidePx).toFixed(1)}" y2="${(yBot0 + 20).toFixed(1)}"
@@ -399,8 +774,14 @@ export function generarCroquisTecnicoSVG(mueble, opciones = {}) {
         <rect x="375" y="-9" width="12" height="10" fill="#fce7f3" stroke="#be185d" stroke-width="1.2"/>
         <text x="391" y="0" font-weight="600">Frente de Cajón</text>
 
-        <rect x="495" y="-9" width="12" height="10" fill="#fef3c7" stroke="#b45309" stroke-width="1.2"/>
-        <text x="511" y="0" font-weight="600">Puerta batiente (línea = bisagra)</text>
+        <rect x="490" y="-9" width="12" height="10" fill="#fef3c7" stroke="#b45309" stroke-width="1.2"/>
+        <text x="506" y="0" font-weight="600">Puerta</text>
+
+        <circle cx="566" cy="-4" r="4.5" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+        <text x="575" y="0" font-weight="700" fill="#b91c1c">⊕ Tornillo 4×50 (${puntosHerrajes.filter((p) => p.tipo === 'tornillo').length})</text>
+
+        <circle cx="696" cy="-4" r="4.5" fill="#10b981" fill-opacity="0.35" stroke="#047857" stroke-width="1.5"/>
+        <text x="705" y="0" font-weight="700" fill="#047857">◉ Bisagra</text>
       </g>
     </svg>
   `;

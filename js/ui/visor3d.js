@@ -7,13 +7,15 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { mapaColoresPorFila } from './colores.js';
+import { mapaColoresPorFila } from './colores.js?v=23';
+import { calcularUnionesYTornillos } from './croquis2d.js?v=23';
 
 export class Visor3D {
   constructor(contenedor) {
     this.contenedor = contenedor;
     this.explosion = 0;
     this.transparentarFrentes = false;
+    this.mostrarTornillos = true;
     this.ultimoEstado = null;
     this.webglDisponible = false;
     this.iniciar();
@@ -125,6 +127,11 @@ export class Visor3D {
     if (this.ultimoEstado) this.actualizar(this.ultimoEstado.mueble, this.ultimoEstado.despiece, false);
   }
 
+  setMostrarTornillos(activo) {
+    this.mostrarTornillos = Boolean(activo);
+    if (this.ultimoEstado) this.actualizar(this.ultimoEstado.mueble, this.ultimoEstado.despiece, false);
+  }
+
   reiniciarCamara() {
     if (!this.ultimoEstado || !this.webglDisponible) return;
     const { ancho: W, alto: H, profundidad: D } = this.ultimoEstado.mueble.params;
@@ -189,6 +196,40 @@ export class Visor3D {
       );
       malla.add(bordes);
       this.grupoMueble.add(malla);
+    }
+
+    // Renderizar Tornillos Soberbio 4×50 mm y Bisagras Cazoleta 35 mm en 3D si está activo
+    if (this.mostrarTornillos) {
+      const { puntos } = calcularUnionesYTornillos(mueble);
+      const kExpT = this.explosion * 0.42;
+      const matTornillo = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.55, roughness: 0.3 });
+      const matBisagra = new THREE.MeshStandardMaterial({ color: 0x10b981, metalness: 0.65, roughness: 0.25 });
+      const matCorredera = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.5, roughness: 0.35 });
+
+      for (const pt of puntos) {
+        const [tx, ty, tz] = pt.pos;
+        const cx = tx - centroMueble[0];
+        const cy = ty - centroMueble[1];
+        const cz = tz - centroMueble[2];
+
+        let meshPt;
+        if (pt.tipo === 'bisagra') {
+          const gBis = new THREE.CylinderGeometry(16, 16, 8, 16);
+          gBis.rotateX(Math.PI / 2);
+          meshPt = new THREE.Mesh(gBis, matBisagra);
+        } else if (pt.tipo === 'corredera') {
+          const gCor = new THREE.BoxGeometry(8, 14, 90);
+          meshPt = new THREE.Mesh(gCor, matCorredera);
+        } else {
+          // Tornillo Soberbio 4×50 mm con cabeza visible
+          const gTor = new THREE.CylinderGeometry(5.5, 3.2, 34, 12);
+          if (pt.eje === 'X') gTor.rotateZ(Math.PI / 2);
+          else if (pt.eje === 'Z') gTor.rotateX(Math.PI / 2);
+          meshPt = new THREE.Mesh(gTor, matTornillo);
+        }
+        meshPt.position.set(cx * (1 + kExpT), cy * (1 + kExpT), cz * (1 + kExpT));
+        this.grupoMueble.add(meshPt);
+      }
     }
 
     // Grilla base de referencia bajo el mueble
