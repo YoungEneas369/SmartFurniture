@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1120">
+  <title>SmartFurniture — Diseño y Optimización de Muebles en Melamina</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./css/estilos.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.min.js",
+      "three/addons/controls/OrbitControls.js": "./vendor/OrbitControls.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="contenedor">
+    <header class="cabecera">
+      <div>
+        <h1>SmartFurniture</h1>
+        <p>Diseño paramétrico, matriz de despiece y optimización de corte en melamina de 18 mm</p>
+      </div>
+      <span class="tag-ramo">Funciones y Matrices · MVFM01</span>
+    </header>
+
+    <!-- PASO 1: FOTO O CROQUIS -->
+    <section class="paso-card" aria-labelledby="titulo-paso-1">
+      <h2 class="paso-titulo" id="titulo-paso-1">
+        <span class="paso-num">1</span>
+        Foto o croquis de referencia (proporciones del mueble)
+      </h2>
+      <p class="texto-suave">
+        La foto o croquis entrega el <strong>tipo de mueble</strong>, la <strong>cantidad de divisiones</strong> y sus <strong>proporciones relativas</strong>. Luego en el Paso 2 ingresas las medidas reales en milímetros para escalarlo a tu espacio.
+      </p>
+
+      <div class="grid-paso1">
+        <div>
+          <label class="texto-suave" style="display:block;margin-bottom:6px;font-weight:600">
+            Elige un croquis de prueba o sube tu propia foto/boceto:
+          </label>
+          <div id="botones-croquis" class="botones-croquis"></div>
+
+          <div class="fila-subida">
+            <label class="btn-subir" for="input-archivo">
+              📷 Subir foto o croquis
+            </label>
+            <input id="input-archivo" type="file" accept="image/*" hidden>
+            <button id="btn-analizar-ia" type="button" class="btn-secundario" hidden>
+              ✨ Analizar con Gemini IA
+            </button>
+          </div>
+
+          <details id="detalles-api" class="detalles-api">
+            <summary>Configurar API key de Gemini (opcional, para reconocimiento por IA en fotos reales)</summary>
+            <div class="campo" style="margin-top:8px">
+              <label for="input-api-key">API Key de Google AI Studio (se guarda solo en tu navegador):</label>
+              <input id="input-api-key" type="password" placeholder="AIzaSy..." autocomplete="off">
+            </div>
+          </details>
+        </div>
+
+        <div id="vista-previa-contenedor" class="vista-previa">
+          <div id="vista-previa-svg"></div>
+          <img id="vista-previa-img" alt="Vista previa de foto o croquis cargado" hidden>
+          <div id="resultado-ia" class="resultado-ia" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASO 2: CONFIRMACIÓN Y MEDIDAS REALES -->
+    <section class="paso-card" aria-labelledby="titulo-paso-2">
+      <h2 class="paso-titulo" id="titulo-paso-2">
+        <span class="paso-num">2</span>
+        Confirmación del mueble y medidas reales del espacio (mm)
+      </h2>
+
+      <div class="presets-medidas">
+        <span class="texto-suave" style="align-self:center">Medidas rápidas:</span>
+        <button type="button" class="btn-secundario" data-preset-medidas="800,1800,300">Librero 800×1800×300</button>
+        <button type="button" class="btn-secundario" data-preset-medidas="900,850,560">Gabinete base 900×850×560</button>
+        <button type="button" class="btn-secundario" data-preset-medidas="550,750,450">Cajonera 550×750×450</button>
+      </div>
+
+      <div class="grid-campos">
+        <div class="campo">
+          <label for="select-tipo">Tipo de mueble (plantilla)</label>
+          <select id="select-tipo">
+            <option value="librero">Librero / repisa abierta</option>
+            <option value="mueble_puertas">Mueble base con puertas</option>
+            <option value="cajonera">Cajonera</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="input-ancho">Ancho disponible W (mm)</label>
+          <input id="input-ancho" type="number" min="200" max="3000" step="10" value="800">
+        </div>
+
+        <div class="campo">
+          <label for="input-alto">Alto disponible H (mm)</label>
+          <input id="input-alto" type="number" min="200" max="2600" step="10" value="1800">
+        </div>
+
+        <div class="campo">
+          <label for="input-profundidad">Profundidad D (mm)</label>
+          <input id="input-profundidad" type="number" min="150" max="800" step="10" value="300">
+        </div>
+
+        <div class="campo" id="grupo-repisas">
+          <label for="input-repisas">N° de repisas interiores</label>
+          <input id="input-repisas" type="number" min="0" max="10" step="1" value="3">
+        </div>
+
+        <div class="campo" id="grupo-puertas" hidden>
+          <label for="input-puertas">N° de puertas batientes</label>
+          <input id="input-puertas" type="number" min="1" max="4" step="1" value="2">
+        </div>
+
+        <div class="campo" id="grupo-cajones" hidden>
+          <label for="input-cajones">N° de cajones</label>
+          <input id="input-cajones" type="number" min="1" max="8" step="1" value="4">
+        </div>
+
+        <div class="campo" style="grid-column: 1 / -1">
+          <label for="input-proporciones">Proporciones verticales desde la foto (de abajo hacia arriba)</label>
+          <input id="input-proporciones" type="text" value="2, 1, 1, 1" placeholder="Ej: 2, 1, 1, 1 (vacío = partes iguales)">
+          <small id="ayuda-proporciones" class="texto-suave"></small>
+        </div>
+      </div>
+    </section>
+
+    <div id="caja-errores" class="alerta-error" hidden></div>
+    <div id="caja-advertencias" class="alerta-aviso" hidden></div>
+
+    <!-- PASO 3: RESULTADOS -->
+    <section class="paso-card" aria-labelledby="titulo-paso-3">
+      <h2 class="paso-titulo" id="titulo-paso-3">
+        <span class="paso-num">3</span>
+        Resultados: Modelo 3D, Despiece y Optimización de Corte
+      </h2>
+
+      <!-- KPIs -->
+      <div class="grid-kpis">
+        <div class="kpi-card">
+          <div class="kpi-titulo">Planchas 2440×1220 mm</div>
+          <div class="kpi-valor" id="kpi-planchas">-</div>
+          <div class="kpi-sub" id="kpi-planchas-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-titulo">Aprovechamiento</div>
+          <div class="kpi-valor" id="kpi-aprovechamiento">-</div>
+          <div class="kpi-sub" id="kpi-desperdicio">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-titulo">Tapacanto requerido</div>
+          <div class="kpi-valor" id="kpi-tapacanto">-</div>
+          <div class="kpi-sub" id="kpi-tapacanto-sub">-</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-titulo">Superficie útil melamina</div>
+          <div class="kpi-valor" id="kpi-area">-</div>
+          <div class="kpi-sub" id="kpi-area-sub">-</div>
+        </div>
+      </div>
+
+      <!-- VISOR 3D -->
+      <div class="contenedor-3d">
+        <div id="lienzo-3d" class="lienzo-3d" aria-label="Visor 3D interactivo del mueble"></div>
+        <div class="barra-3d">
+          <label for="slider-explosion">
+            Vista explosiva (separar piezas):
+            <input id="slider-explosion" type="range" min="0" max="1" step="0.05" value="0">
+          </label>
+          <label for="check-transparentar">
+            <input id="check-transparentar" type="checkbox">
+            Transparentar puertas/frentes
+          </label>
+          <button id="btn-centrar-3d" type="button" class="btn-secundario">Centrar vista 3D</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- PLANOS DE CORTE 2D -->
+    <section class="paso-card" aria-labelledby="titulo-corte">
+      <h2 class="paso-titulo" id="titulo-corte">
+        <span class="paso-num">4</span>
+        Plano de corte 2D en planchas de 2440 × 1220 mm (sierra = 3 mm)
+      </h2>
+      <p class="texto-suave">
+        Distribución calculada mediante heurística de corte en guillotina. El símbolo <strong>↻</strong> indica que la pieza se giró 90° para aprovechar mejor el tablero.
+      </p>
+      <div id="contenedor-planos" class="grid-planos"></div>
+    </section>
+
+    <!-- MATRIZ DE DESPIECE Y VECTORES -->
+    <section class="paso-card" aria-labelledby="titulo-matriz">
+      <h2 class="paso-titulo" id="titulo-matriz">
+        <span class="paso-num">5</span>
+        Matriz de despiece M y lista de piezas
+      </h2>
+
+      <div class="tabla-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Pieza / Material</th>
+              <th>Cant.</th>
+              <th>Corte (Largo × Ancho mm)</th>
+              <th>Espesor (mm)</th>
+              <th>Área total</th>
+              <th>Tapacanto (bordes visibles)</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-despiece"></tbody>
+        </table>
+      </div>
+
+      <pre id="bloque-matriz-m" class="formula" style="margin-top:14px"></pre>
+
+      <details class="detalles-api" style="margin-top:12px">
+        <summary>Ver tabla completa de vectores de posición 3D p⃗ = (x, y, z) y tamaño t⃗ = (Δx, Δy, Δz) por pieza</summary>
+        <div class="tabla-scroll" style="margin-top:10px">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Pieza</th>
+                <th>Vector posición p⃗ = (x, y, z) mm</th>
+                <th>Vector tamaño t⃗ = (Δx, Δy, Δz) mm</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-vectores"></tbody>
+          </table>
+        </div>
+      </details>
+
+      <div style="margin-top:14px">
+        <strong style="font-size:0.9rem">Supuestos constructivos aplicados:</strong>
+        <ul id="lista-supuestos" class="texto-suave" style="margin:6px 0 0"></ul>
+      </div>
+    </section>
+
+    <!-- MODELO MATEMÁTICO MVFM01 -->
+    <section class="paso-card" aria-labelledby="titulo-mate">
+      <h2 class="paso-titulo" id="titulo-mate">
+        <span class="paso-num">6</span>
+        Justificación y Cálculos Matemáticos (Asignatura MVFM01)
+      </h2>
+      <div id="contenedor-matematicas"></div>
+    </section>
+
+    <footer class="pie">
+      SmartFurniture · Proyecto ABPro Funciones y Matrices (MVFM01) · Fernando Durán, Cristopher Figueroa, Francisco Lara, Génesis Sepúlveda
+    </footer>
+  </div>
+
+  <script type="module" src="./js/ui/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

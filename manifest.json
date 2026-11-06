@@ -1,0 +1,21 @@
+{
+  "name": "SmartFurniture — Diseño y Corte en Melamina",
+  "short_name": "SmartFurniture",
+  "description": "Diseño paramétrico, matriz de despiece y optimización de corte de muebles en melamina de 18 mm.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0b1120",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
