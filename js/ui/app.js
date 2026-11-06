@@ -10,10 +10,10 @@
  *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
  *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=18';
-import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=18';
-import { calcularProyecto } from '../core/sistema.js?v=18';
-import { tapacantoPorFila } from '../core/calculos.js?v=18';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=19';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=19';
+import { calcularProyecto } from '../core/sistema.js?v=19';
+import { tapacantoPorFila } from '../core/calculos.js?v=19';
 import {
   analizarConGemini,
   analizarImagenLocal,
@@ -21,10 +21,10 @@ import {
   prepararImagenParaIA,
   extraerRasgosVisuales,
   CROQUIS_EJEMPLO,
-} from '../ia/analizador.js?v=18';
-import { mapaColoresPorFila } from './colores.js?v=18';
-import { renderizarPlanosCorte } from './planoCorte.js?v=18';
-import { Visor3D } from './visor3d.js?v=18';
+} from '../ia/analizador.js?v=19';
+import { mapaColoresPorFila } from './colores.js?v=19';
+import { renderizarPlanosCorte } from './planoCorte.js?v=19';
+import { Visor3D } from './visor3d.js?v=19';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 

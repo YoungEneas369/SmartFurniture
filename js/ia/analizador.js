@@ -375,15 +375,19 @@ export function extraerRasgosVisuales(imgElement) {
       ctx32.drawImage(imgElement, 0, 0, 32, 32);
       const d32 = ctx32.getImageData(0, 0, 32, 32).data;
       const q = [0, 0, 0, 0];
+      const c16 = new Array(16).fill(0);
       for (let y = 0; y < 32; y++) {
         for (let x = 0; x < 32; x++) {
           const i = (y * 32 + x) * 4;
           const l = 0.299 * d32[i] + 0.587 * d32[i + 1] + 0.114 * d32[i + 2];
           const qi = (y < 16 ? 0 : 2) + (x < 16 ? 0 : 1);
           q[qi] += l;
+          const ci = (y >> 3) * 4 + (x >> 3);
+          c16[ci] += l;
         }
       }
       cuadrantes = q.map((v) => Math.round(v / 256));
+      var celdas16 = c16.map((v) => Math.round(v / 64));
     }
 
     // 2. Caja delimitadora 2D del mueble y huella 8×8 en grilla 96×96
@@ -452,7 +456,7 @@ export function extraerRasgosVisuales(imgElement) {
     const media = valores8x8.reduce((a, b) => a + b, 0) / 64;
     const huella = `${wOrig}x${hOrig}_` + valores8x8.map((v) => (v >= media ? '1' : '0')).join('');
 
-    return { wOrig, hOrig, relacionArchivo, relacionMueble, cuadrantes, huella };
+    return { wOrig, hOrig, relacionArchivo, relacionMueble, cuadrantes, celdas16, huella };
   } catch {
     return { wOrig, hOrig, relacionArchivo, relacionMueble: relacionArchivo, cuadrantes: null, huella: null };
   }
@@ -708,6 +712,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'velador_3_cajones_croquis',
     dimensionesImg: [[546, 389], [243, 208]],
     cuadrantes: [247, 249, 248, 248],
+    celdas16: [254, 248, 250, 255, 253, 234, 237, 255, 254, 235, 236, 255, 255, 249, 247, 255],
     clavesNombre: ['images (13)'],
     resultado: {
       categoriaMueble: 'velador',
@@ -734,6 +739,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'estante_mixto_3_cajones_arriba',
     dimensionesImg: [[314, 499], [736, 994]],
     cuadrantes: [239, 240, 243, 240],
+    celdas16: [240, 232, 238, 242, 243, 242, 242, 241, 242, 240, 240, 242, 248, 243, 238, 244],
     clavesNombre: ['0aae92'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -762,6 +768,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'vanitorio_cajon_repisa',
     dimensionesImg: [[1500, 1500]],
     cuadrantes: [216, 221, 224, 221],
+    celdas16: [253, 231, 239, 254, 229, 151, 150, 242, 235, 212, 200, 246, 238, 212, 195, 249],
     clavesNombre: ['fit=cover.webp'],
     resultado: {
       categoriaMueble: 'vanitorio',
@@ -787,6 +794,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'escritorio_2_cajones_120',
     dimensionesImg: [[1500, 1500]],
     cuadrantes: [243, 245, 253, 253],
+    celdas16: [251, 249, 250, 252, 237, 236, 240, 240, 247, 255, 255, 248, 254, 255, 255, 254],
     clavesNombre: ['fit=cover.jpeg'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -811,6 +819,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_4_patas_120x80',
     dimensionesImg: [[595, 402]],
     cuadrantes: [250, 250, 251, 253],
+    celdas16: [254, 253, 251, 252, 249, 247, 249, 249, 251, 251, 253, 252, 253, 250, 253, 255],
     clavesNombre: ['images (17)'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -860,6 +869,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'librero_croquis_2060x2220',
     dimensionesImg: [[509, 468]],
     cuadrantes: [247, 248, 243, 238],
+    celdas16: [255, 251, 252, 255, 254, 228, 234, 250, 255, 228, 230, 249, 254, 234, 225, 250],
     clavesNombre: ['28be6e'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -887,6 +897,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'estante_rustico_3_niveles',
     dimensionesImg: [[425, 600]],
     cuadrantes: [170, 164, 142, 137],
+    celdas16: [239, 125, 121, 237, 227, 88, 80, 219, 208, 82, 76, 200, 185, 94, 96, 173],
     clavesNombre: ['28d643'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -913,6 +924,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'estante_pared_puente_102x60',
     dimensionesImg: [[735, 829]],
     cuadrantes: [229, 230, 231, 230],
+    celdas16: [230, 226, 227, 231, 230, 231, 240, 225, 217, 207, 205, 210, 247, 251, 251, 254],
     clavesNombre: ['29332e'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -938,6 +950,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'repisa_flotante_entrelazada_57x57',
     dimensionesImg: [[736, 920]],
     cuadrantes: [157, 193, 163, 185],
+    celdas16: [167, 166, 188, 206, 147, 149, 165, 215, 162, 151, 159, 189, 179, 162, 184, 208],
     clavesNombre: ['e9f996'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -964,6 +977,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'librero_intercalado_6_niveles',
     dimensionesImg: [[564, 995]],
     cuadrantes: [155, 167, 154, 168],
+    celdas16: [184, 121, 158, 163, 179, 138, 194, 155, 177, 134, 172, 140, 174, 132, 194, 168],
     clavesNombre: ['a85db1'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -1037,6 +1051,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'rack_tv_flancos_1800x520',
     dimensionesImg: [[735, 510]],
     cuadrantes: [149, 147, 157, 148],
+    celdas16: [129, 121, 156, 144, 169, 178, 137, 151, 162, 168, 124, 154, 153, 145, 156, 158],
     clavesNombre: ['400906'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1062,6 +1077,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'consola_pilares_135x90',
     dimensionesImg: [[735, 588]],
     cuadrantes: [243, 243, 244, 243],
+    celdas16: [248, 243, 242, 242, 242, 240, 246, 242, 246, 240, 239, 240, 247, 244, 244, 251],
     clavesNombre: ['c5a4af'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1088,6 +1104,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'repisa_mural_tetris_70x70',
     dimensionesImg: [[640, 640]],
     cuadrantes: [185, 182, 185, 185],
+    celdas16: [179, 184, 179, 186, 192, 186, 181, 184, 192, 179, 184, 186, 188, 182, 185, 185],
     clavesNombre: ['08f7eac5'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -1112,6 +1129,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'escalera_2_peldanos_40x38',
     dimensionesImg: [[634, 564]],
     cuadrantes: [210, 207, 211, 205],
+    celdas16: [235, 211, 214, 227, 230, 163, 184, 202, 216, 173, 167, 212, 241, 214, 205, 235],
     clavesNombre: ['0a85893a'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1136,6 +1154,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_centro_cuadrada_80x45',
     dimensionesImg: [[736, 1104]],
     cuadrantes: [138, 166, 183, 199],
+    celdas16: [140, 144, 148, 166, 103, 166, 181, 170, 193, 170, 181, 212, 228, 142, 176, 226],
     clavesNombre: ['12a3c801'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1160,6 +1179,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_multiusos_taburete_30x45',
     dimensionesImg: [[600, 750]],
     cuadrantes: [221, 224, 229, 234],
+    celdas16: [224, 221, 220, 225, 243, 197, 206, 244, 242, 213, 209, 243, 246, 215, 235, 252],
     clavesNombre: ['1c57bbe5'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1184,6 +1204,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'escritorio_4_cajones_120x75',
     dimensionesImg: [[736, 914]],
     cuadrantes: [206, 204, 232, 221],
+    celdas16: [201, 222, 212, 212, 194, 205, 190, 203, 225, 232, 213, 225, 224, 249, 218, 227],
     clavesNombre: ['1f4debc4'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1208,6 +1229,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'silla_jardin_66x76',
     dimensionesImg: [[736, 1030]],
     cuadrantes: [223, 225, 229, 231],
+    celdas16: [228, 224, 224, 228, 233, 206, 210, 238, 231, 181, 198, 219, 254, 250, 254, 255],
     clavesNombre: ['23bbaf01'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1232,6 +1254,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'repisa_flotante_duplicada_57x57',
     dimensionesImg: [[736, 736]],
     cuadrantes: [200, 203, 205, 201],
+    celdas16: [205, 190, 200, 210, 204, 199, 196, 207, 210, 202, 200, 204, 212, 195, 190, 208],
     clavesNombre: ['2439ceff'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -1256,6 +1279,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'coffee_table_120x45x60',
     dimensionesImg: [[720, 1080]],
     cuadrantes: [178, 185, 190, 202],
+    celdas16: [196, 172, 168, 199, 187, 158, 178, 193, 182, 164, 198, 198, 204, 209, 209, 205],
     clavesNombre: ['2b0010cd'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1280,6 +1304,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mueble_isla_2_puertas_90x85',
     dimensionesImg: [[736, 774]],
     cuadrantes: [248, 246, 252, 248],
+    celdas16: [249, 246, 247, 247, 253, 245, 243, 247, 255, 249, 250, 247, 255, 248, 245, 250],
     clavesNombre: ['3890a18a'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -1304,6 +1329,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'escritorio_3_cajones_120x76',
     dimensionesImg: [[736, 736]],
     cuadrantes: [208, 233, 229, 244],
+    celdas16: [238, 204, 224, 239, 218, 174, 232, 238, 229, 200, 244, 241, 243, 244, 242, 247],
     clavesNombre: ['3e03f001'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1328,6 +1354,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_centro_nichos_110x48',
     dimensionesImg: [[736, 906]],
     cuadrantes: [215, 225, 245, 236],
+    celdas16: [248, 241, 252, 255, 193, 180, 176, 218, 252, 221, 201, 235, 255, 253, 252, 255],
     clavesNombre: ['40936aa7'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1352,6 +1379,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'velador_1_cajon_45x45',
     dimensionesImg: [[735, 568]],
     cuadrantes: [249, 251, 245, 252],
+    celdas16: [255, 255, 252, 253, 245, 241, 246, 253, 242, 239, 254, 250, 251, 247, 249, 255],
     clavesNombre: ['4151b230'],
     resultado: {
       categoriaMueble: 'velador',
@@ -1376,6 +1404,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'cocina_modular_260x210',
     dimensionesImg: [[675, 1200]],
     cuadrantes: [174, 183, 242, 242],
+    celdas16: [196, 207, 222, 208, 135, 160, 152, 152, 251, 243, 244, 251, 238, 236, 236, 238],
     clavesNombre: ['42fd7ea2'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -1402,6 +1431,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'estanteria_taller_150x195',
     dimensionesImg: [[680, 924]],
     cuadrantes: [159, 176, 175, 186],
+    celdas16: [161, 188, 189, 184, 134, 151, 153, 176, 156, 181, 187, 162, 172, 190, 215, 180],
     clavesNombre: ['4b8f1ad0'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -1428,6 +1458,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'rack_tv_escalonado_170x48',
     dimensionesImg: [[720, 472]],
     cuadrantes: [237, 222, 236, 247],
+    celdas16: [253, 244, 221, 234, 242, 209, 204, 228, 235, 223, 233, 249, 247, 240, 252, 253],
     clavesNombre: ['52622014'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1453,6 +1484,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'repisa_mural_3_bandejas_119x55',
     dimensionesImg: [[736, 552]],
     cuadrantes: [246, 239, 239, 240],
+    celdas16: [255, 250, 255, 237, 240, 241, 229, 237, 242, 226, 244, 241, 248, 239, 236, 240],
     clavesNombre: ['53e96469'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
@@ -1477,6 +1509,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'escritorio_madera_100x80',
     dimensionesImg: [[736, 920]],
     cuadrantes: [198, 189, 201, 202],
+    celdas16: [198, 194, 195, 196, 212, 187, 175, 189, 207, 188, 185, 203, 207, 203, 209, 210],
     clavesNombre: ['567148b7'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1502,6 +1535,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'taburete_alto_bar_48x72',
     dimensionesImg: [[650, 975]],
     cuadrantes: [201, 202, 192, 196],
+    celdas16: [215, 181, 179, 212, 190, 216, 202, 216, 182, 181, 168, 192, 195, 212, 216, 208],
     clavesNombre: ['5d39a775'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1526,6 +1560,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'closet_2_columnas_120x200',
     dimensionesImg: [[736, 1001]],
     cuadrantes: [226, 231, 214, 226],
+    celdas16: [239, 235, 236, 239, 211, 219, 224, 226, 210, 215, 231, 224, 222, 209, 216, 231],
     clavesNombre: ['607e87fc'],
     resultado: {
       categoriaMueble: 'armario_ropero',
@@ -1551,6 +1586,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'banca_plana_120x45',
     dimensionesImg: [[736, 724]],
     cuadrantes: [225, 228, 233, 202],
+    celdas16: [236, 236, 241, 244, 218, 208, 215, 214, 222, 222, 199, 187, 244, 244, 219, 204],
     clavesNombre: ['60d023b1'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1575,6 +1611,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_trabajo_183x71',
     dimensionesImg: [[564, 564]],
     cuadrantes: [229, 228, 239, 249],
+    celdas16: [247, 241, 235, 241, 225, 205, 205, 232, 236, 230, 244, 240, 250, 240, 255, 255],
     clavesNombre: ['9d33dacb'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1599,6 +1636,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_centro_100x43x57',
     dimensionesImg: [[736, 736]],
     cuadrantes: [207, 223, 251, 241],
+    celdas16: [238, 225, 240, 253, 207, 159, 182, 216, 253, 245, 216, 245, 255, 253, 248, 254],
     clavesNombre: ['9d728c8c'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1623,6 +1661,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_centro_100x46x60',
     dimensionesImg: [[600, 600]],
     cuadrantes: [223, 223, 229, 239],
+    celdas16: [253, 244, 251, 246, 214, 182, 177, 218, 231, 179, 215, 233, 254, 254, 254, 254],
     clavesNombre: ['a0d29dbe'],
     resultado: {
       categoriaMueble: 'escritorio',
@@ -1647,6 +1686,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'estante_bajo_intercalado_75x53',
     dimensionesImg: [[640, 640]],
     cuadrantes: [218, 210, 210, 211],
+    celdas16: [236, 231, 229, 228, 196, 208, 205, 179, 194, 199, 186, 173, 225, 223, 235, 248],
     clavesNombre: ['a75a47e2'],
     resultado: {
       categoriaMueble: 'estante_librero',
@@ -1672,6 +1712,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'rack_cubos_entrelazados_120x75',
     dimensionesImg: [[736, 618]],
     cuadrantes: [238, 223, 229, 231],
+    celdas16: [254, 247, 226, 232, 244, 206, 209, 223, 238, 214, 198, 232, 242, 223, 243, 253],
     clavesNombre: ['a924dce9'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1697,6 +1738,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'banca_sillon_70x62x60',
     dimensionesImg: [[736, 920]],
     cuadrantes: [221, 222, 230, 232],
+    celdas16: [225, 223, 222, 225, 229, 207, 211, 230, 230, 193, 206, 220, 254, 244, 250, 254],
     clavesNombre: ['be39c901'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1721,6 +1763,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'mesa_centro_pilares_120x45x70',
     dimensionesImg: [[564, 634]],
     cuadrantes: [233, 231, 151, 171],
+    celdas16: [232, 232, 231, 226, 235, 234, 233, 232, 206, 157, 152, 194, 150, 93, 137, 199],
     clavesNombre: ['cd30e7e7'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1746,6 +1789,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'cajonera_3_cajones_36x67',
     dimensionesImg: [[736, 736]],
     cuadrantes: [246, 241, 247, 241],
+    celdas16: [249, 244, 244, 250, 246, 244, 237, 235, 249, 245, 239, 237, 249, 243, 244, 244],
     clavesNombre: ['d9ee131c'],
     resultado: {
       categoriaMueble: 'velador',
@@ -1770,6 +1814,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'silla_comedor_45x100x45',
     dimensionesImg: [[736, 952]],
     cuadrantes: [219, 239, 220, 220],
+    celdas16: [230, 182, 223, 254, 229, 234, 227, 254, 223, 188, 182, 220, 241, 226, 245, 232],
     clavesNombre: ['ee375fdf'],
     resultado: {
       categoriaMueble: 'otro',
@@ -1794,6 +1839,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'comoda_6_cajones_140x72',
     dimensionesImg: [[736, 981]],
     cuadrantes: [245, 246, 235, 236],
+    celdas16: [250, 247, 248, 250, 247, 236, 236, 250, 247, 243, 245, 251, 224, 225, 219, 229],
     clavesNombre: ['fa34240d'],
     resultado: {
       categoriaMueble: 'cajonera',
@@ -1818,6 +1864,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'rack_tv_nordico_180x52',
     dimensionesImg: [[735, 490]],
     cuadrantes: [241, 243, 245, 237],
+    celdas16: [252, 253, 252, 254, 240, 219, 230, 235, 242, 235, 233, 228, 251, 252, 244, 243],
     clavesNombre: ['fd9a9c0e'],
     resultado: {
       categoriaMueble: 'rack_tv',
@@ -1843,6 +1890,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     id: 'organizador_mixto_114x92',
     dimensionesImg: [[736, 736]],
     cuadrantes: [245, 247, 247, 248],
+    celdas16: [241, 244, 243, 249, 243, 250, 252, 246, 241, 244, 251, 248, 254, 248, 245, 249],
     clavesNombre: ['fe04caa5'],
     resultado: {
       categoriaMueble: 'cajonera',
@@ -1866,7 +1914,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
   },
 ]);
 
-function buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo = '') {
+function buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo = '', celdas16 = null) {
   const nom = String(nombreArchivo).toLowerCase();
 
   // 1. Por nombre de archivo específico del álbum
@@ -1880,20 +1928,27 @@ function buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo = '') {
     }
   }
 
-  // 2. Coincidencia estricta: misma resolución (w, h) Y firma de cuadrantes casi idéntica (dist <= 10)
-  // Evita que fotos nuevas con fondo blanco coincidan por error con el catálogo local.
+  // 2. Coincidencia estricta por resolución (w, h) + grilla 4×4 (celdas16) o cuadrantes
   let mejor = null;
   let menorDist = Infinity;
   for (const item of CATALOGO_ALBUM_MUEBLES) {
     const coincideDim = item.dimensionesImg.some(([dw, dh]) => dw === w && dh === h);
-    if (!coincideDim || !cuadrantes) continue;
-    const dist = item.cuadrantes.reduce((acc, v, i) => acc + Math.abs(v - cuadrantes[i]), 0);
-    if (dist < menorDist) {
-      menorDist = dist;
-      mejor = item;
+    if (!coincideDim) continue;
+    if (celdas16 && item.celdas16) {
+      const dist16 = item.celdas16.reduce((acc, v, i) => acc + Math.abs(v - celdas16[i]), 0);
+      if (dist16 < menorDist) {
+        menorDist = dist16;
+        mejor = item;
+      }
+    } else if (cuadrantes) {
+      const dist4 = item.cuadrantes.reduce((acc, v, i) => acc + Math.abs(v - cuadrantes[i]), 0) * 4;
+      if (dist4 < menorDist) {
+        menorDist = dist4;
+        mejor = item;
+      }
     }
   }
-  if (mejor && menorDist <= 10) return mejor;
+  if (mejor && menorDist <= 42) return mejor;
 
   return null;
 }
@@ -1903,7 +1958,7 @@ export function analizarImagenLocal(imgElement, nombreArchivo = '') {
   const { wOrig: w, hOrig: h, relacionMueble, cuadrantes } = rasgos;
 
   // 1. Coincidencia con el catálogo verificado del álbum "Muebles"
-  const coincidencia = buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo);
+  const coincidencia = buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo, rasgos.celdas16);
   if (coincidencia) {
     return normalizarResultadoIA(coincidencia.resultado, coincidencia.resultado.fuente, rasgos);
   }
