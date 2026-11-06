@@ -963,6 +963,279 @@ function construirConsolaPilares({ W, H, D }) {
   };
 }
 
+/* ---------------- 8. Motor Universal por Columnas Independientes (2D Column-Grid + Zócalo + Cubierta Elevada) ---------------- */
+
+function construirGrillaColumnas({
+  W,
+  H,
+  D,
+  columnasDetalle = [],
+  zocaloInferior = 'ninguno',
+  cubiertaSuperior = 'directa',
+  alturaPatasMm = 0,
+  tieneFondo = false,
+}) {
+  const piezas = [];
+  const z0 = tieneFondo ? tf : 0;
+  const p = D - z0;
+
+  // 1. Capa Inferior: Piso, Zócalo Retraído o Patas
+  let yBase = 0;
+  if (zocaloInferior === 'retraido') {
+    const hZoc = Math.max(35, Math.min(110, alturaPatasMm > 20 ? mm(alturaPatasMm) : mm(H * 0.09)));
+    const margenZoc = Math.max(40, mm(W * 0.06));
+    yBase = hZoc;
+    piezas.push(
+      pieza({
+        nombre: 'Zócalo retraído frontal',
+        grupo: 'estructura',
+        largo: W - 2 * margenZoc,
+        ancho: hZoc,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [margenZoc, 0, D - 2 * e],
+        tam: [W - 2 * margenZoc, hZoc, e],
+      }),
+      pieza({
+        nombre: 'Zócalo retraído trasero',
+        grupo: 'estructura',
+        largo: W - 2 * margenZoc,
+        ancho: hZoc,
+        tapacanto: { largo: 0, ancho: 0 },
+        pos: [margenZoc, 0, e],
+        tam: [W - 2 * margenZoc, hZoc, e],
+      }),
+    );
+  } else if (zocaloInferior === 'patas' || alturaPatasMm > 0) {
+    yBase = Math.max(0, Math.min(mm(H * 0.65), mm(alturaPatasMm || H * 0.12)));
+  }
+
+  // Base inferior principal
+  piezas.push(
+    pieza({
+      nombre: 'Base inferior principal',
+      grupo: 'estructura',
+      largo: W,
+      ancho: p,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, yBase, z0],
+      tam: [W, e, p],
+    }),
+  );
+
+  // 2. Capa Superior: Directa, Elevada sobre Pilares o Flotante Retraída
+  const hPilarSup =
+    cubiertaSuperior === 'elevada_pilares'
+      ? Math.max(70, mm(H * 0.15))
+      : cubiertaSuperior === 'flotante'
+        ? Math.max(30, mm(H * 0.09))
+        : 0;
+
+  const yTechoCuerpo = H - e - hPilarSup;
+  const yCuerpo = yBase + e;
+  const hCuerpoTotal = Math.max(120, yTechoCuerpo - e - yCuerpo);
+
+  // Cubierta del cuerpo principal (completa o parcial en los extremos si hay vano en U)
+  const tieneVanoCentral =
+    columnasDetalle.length >= 3 &&
+    columnasDetalle[1]?.abiertoArriba === true;
+
+  if (tieneVanoCentral) {
+    const wTechoLat = Math.max(160, mm(W * 0.34));
+    piezas.push(
+      pieza({
+        nombre: 'Cubierta parcial lateral',
+        grupo: 'estructura',
+        largo: wTechoLat,
+        ancho: p,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [0, yTechoCuerpo - e, z0],
+        tam: [wTechoLat, e, p],
+      }),
+      pieza({
+        nombre: 'Cubierta parcial lateral',
+        grupo: 'estructura',
+        largo: wTechoLat,
+        ancho: p,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [W - wTechoLat, yTechoCuerpo - e, z0],
+        tam: [wTechoLat, e, p],
+      }),
+    );
+  } else {
+    piezas.push(
+      pieza({
+        nombre: 'Cubierta cuerpo principal',
+        grupo: 'estructura',
+        largo: W,
+        ancho: p,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [0, yTechoCuerpo - e, z0],
+        tam: [W, e, p],
+      }),
+    );
+  }
+
+  // Si hay cubierta elevada sobre pilares o flotante, añadir pilares y cubierta superior en H - e
+  if (hPilarSup > 0) {
+    const xPilar1 = Math.max(2 * e, mm(W * 0.22));
+    const xPilar2 = W - xPilar1 - e;
+    piezas.push(
+      pieza({
+        nombre: 'Pilar soporte cubierta',
+        grupo: 'estructura',
+        largo: p,
+        ancho: hPilarSup,
+        tapacanto: { largo: 0, ancho: 2 },
+        pos: [xPilar1, yTechoCuerpo, z0],
+        tam: [e, hPilarSup, p],
+      }),
+      pieza({
+        nombre: 'Pilar soporte cubierta',
+        grupo: 'estructura',
+        largo: p,
+        ancho: hPilarSup,
+        tapacanto: { largo: 0, ancho: 2 },
+        pos: [xPilar2, yTechoCuerpo, z0],
+        tam: [e, hPilarSup, p],
+      }),
+      pieza({
+        nombre: 'Cubierta superior elevada',
+        grupo: 'estructura',
+        largo: W,
+        ancho: p,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [0, H - e, z0],
+        tam: [W, e, p],
+      }),
+    );
+  }
+
+  // 3. Laterales exteriores (desde piso si tiene patas, o desde yCuerpo si tiene zócalo/piso)
+  const yLatInf = zocaloInferior === 'retraido' ? yCuerpo : 0;
+  const hLatExt = (yTechoCuerpo - e) - yLatInf;
+  piezas.push(
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hLatExt,
+      ancho: p,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [0, yLatInf, z0],
+      tam: [e, hLatExt, p],
+    }),
+    pieza({
+      nombre: 'Lateral exterior',
+      grupo: 'estructura',
+      largo: hLatExt,
+      ancho: p,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [W - e, yLatInf, z0],
+      tam: [e, hLatExt, p],
+    }),
+  );
+
+  // 4. Columnas verticales independientes (Izquierda -> Derecha)
+  const nCols = Math.max(1, Math.min(4, columnasDetalle.length || 3));
+  const pesosAncho = Array.from({ length: nCols }, (_, i) => Math.max(0.2, Number(columnasDetalle[i]?.proporcionAncho) || 1));
+  const fracAncho = normalizarProporciones(pesosAncho, nCols);
+  const anchoDisponibleCols = W - (nCols + 1) * e;
+  const anchosCols = escalarProporciones(fracAncho, anchoDisponibleCols).map((v) => mm(v));
+
+  let xCursor = e;
+  for (let c = 0; c < nCols; c++) {
+    const wCol = anchosCols[c];
+    const colCfg = columnasDetalle[c] || { celdas: ['hueco'] };
+    const celdas = Array.isArray(colCfg.celdas) && colCfg.celdas.length ? colCfg.celdas.slice(0, 6) : ['hueco'];
+    const nCeldas = celdas.length;
+    const hDispCol = hCuerpoTotal - (nCeldas - 1) * e;
+    const hCelda = mm(hDispCol / nCeldas);
+
+    let yCelda = yCuerpo;
+    for (let r = 0; r < nCeldas; r++) {
+      const tipoCelda = celdas[r];
+      const hAct = r === nCeldas - 1 ? (yCuerpo + hCuerpoTotal - yCelda) : hCelda;
+
+      if (tipoCelda === 'puerta' || tipoCelda === 'puertas') {
+        piezas.push(
+          pieza({
+            nombre: 'Puerta columna',
+            grupo: 'puerta',
+            largo: Math.max(60, hAct - 2 * s),
+            ancho: Math.max(60, wCol - 2 * s),
+            tapacanto: { largo: 2, ancho: 2 },
+            pos: [xCursor + s, yCelda + s, z0 + p - e],
+            tam: [Math.max(60, wCol - 2 * s), Math.max(60, hAct - 2 * s), e],
+          }),
+        );
+      } else if (tipoCelda === 'cajon') {
+        piezas.push(
+          pieza({
+            nombre: 'Frente de cajón',
+            grupo: 'frente',
+            largo: Math.max(60, wCol - 2 * s),
+            ancho: Math.max(50, hAct - 2 * s),
+            tapacanto: { largo: 2, ancho: 2 },
+            pos: [xCursor + s, yCelda + s, z0 + p - e],
+            tam: [Math.max(60, wCol - 2 * s), Math.max(50, hAct - 2 * s), e],
+          }),
+        );
+      }
+
+      yCelda += hAct;
+      if (r < nCeldas - 1) {
+        const profRep = (tipoCelda === 'puerta' || tipoCelda === 'cajon') ? p - e : p;
+        piezas.push(
+          pieza({
+            nombre: 'Repisa de columna',
+            grupo: 'repisa',
+            largo: wCol,
+            ancho: profRep,
+            tapacanto: { largo: 1, ancho: 0 },
+            pos: [xCursor, yCelda, z0],
+            tam: [wCol, e, profRep],
+          }),
+        );
+        yCelda += e;
+      }
+    }
+
+    xCursor += wCol;
+    if (c < nCols - 1) {
+      piezas.push(
+        pieza({
+          nombre: 'División vertical maestra',
+          grupo: 'estructura',
+          largo: hCuerpoTotal,
+          ancho: p - e,
+          tapacanto: { largo: 1, ancho: 0 },
+          pos: [xCursor, yCuerpo, z0],
+          tam: [e, hCuerpoTotal, p - e],
+        }),
+      );
+      xCursor += e;
+    }
+  }
+
+  if (tieneFondo) {
+    piezas.push(fondo(W, yTechoCuerpo, yBase));
+  }
+
+  return {
+    piezas,
+    detalle: { p, hLibre: hCuerpoTotal, espacios: [hCuerpoTotal], fracciones: [1], yBase },
+    advertencias: advertenciasRepisas(Math.max(...anchosCols) + 2 * e, [hCuerpoTotal], 1),
+    supuestos: [
+      `Estructura composicional de ${nCols} columna(s) verticales independientes (${W}×${H}×${D} mm).`,
+      zocaloInferior === 'retraido'
+        ? `Incluye zócalo retraído inferior de ${yBase} mm.`
+        : yBase > 0
+          ? `Incluye patas/espacio inferior de ${yBase} mm.`
+          : 'Apoyo directo a nivel de piso.',
+      hPilarSup > 0 ? `Incluye cubierta superior elevada sobre pilares de ${hPilarSup} mm.` : 'Cubierta superior directa.',
+    ],
+  };
+}
+
 /* ---------------- Constructor Modular General ---------------- */
 
 function modular({
@@ -981,6 +1254,20 @@ function modular({
   if (subtipo === 'rack_escalonado') return construirRackEscalonado({ W, H, D });
   if (subtipo === 'rack_flancos') return construirRackFlancos({ W, H, D });
   if (subtipo === 'consola_pilares') return construirConsolaPilares({ W, H, D });
+  if (subtipo === 'grilla_columnas' || (Array.isArray(secciones?.columnasDetalle) && secciones.columnasDetalle.length > 0)) {
+    return construirGrillaColumnas({
+      W, H, D,
+      columnasDetalle: secciones?.columnasDetalle || [
+        { proporcionAncho: 1, celdas: ['hueco'] },
+        { proporcionAncho: 1.4, abiertoArriba: true, celdas: ['hueco', 'hueco'] },
+        { proporcionAncho: 1, celdas: ['hueco'] },
+      ],
+      zocaloInferior: secciones?.zocaloInferior || (alturaPatasMm > 0 ? 'retraido' : 'ninguno'),
+      cubiertaSuperior: secciones?.cubiertaSuperior || 'directa',
+      alturaPatasMm,
+      tieneFondo,
+    });
+  }
 
   const listaSec = Array.isArray(secciones) && secciones.length
     ? secciones
