@@ -97,6 +97,18 @@ const ESQUEMA_RESPUESTA = {
         'silla_respaldo',
         'escalera_2_peldanos',
         'grilla_columnas',
+        'repisa_tetris',
+        'isla_alero',
+        'escritorio_pedestal_izq',
+        'mesa_centro_nichos',
+        'meson_alzada',
+        'rack_puente_derecho',
+        'repisa_escalonada_3',
+        'closet_abierto_2col',
+        'estante_cubos_escalonado',
+        'mesa_centro_doble',
+        'organizador_2col_mixto',
+        'cocina_modular',
       ],
       description: '"mesa" = mesa/escritorio de 4 patas sin repisas bajas; "puente_laterales" = estante mural con 2 columnas altas a los lados y repisas puente al centro; "flotante_entrelazada" = repisa flotante con cubo central y escuadras salientes; "gondola" = estantería exhibidora con bandejas voladas a ambos costados; "intercalado" = librero con divisiones verticales alternadas en zig-zag; "estandar" = mueble modular por niveles.',
     },
@@ -204,6 +216,14 @@ Analiza la imagen y devuelve el JSON estructurado siguiendo estas reglas:
    - Si es un rack de TV o credenza horizontal baja dividida en 3 columnas (2 cajones grandes a los costados, repisas abiertas al centro) con zócalo retraído y cubierta superior flotante/elevada: subtipo = "rack_flancos".
    - Si es un arrimo, consola o rack con cubierta superior corrida sostenida por 2 pilares/soportes sobre 2 módulos laterales con cubiertas parciales, dejando un vano central en U con repisa media y zócalo retraído (ej. 135×90×35 cm): subtipo = "consola_pilares".
    - Si es un librero alto cuyas divisiones verticales van alternadas en zig-zag entre un nivel y otro: subtipo = "intercalado".
+   - Si es una repisa mural cuadrada tipo molinete con 4 divisiones interiores entrelazadas alrededor de un cuadro central: subtipo = "repisa_tetris".
+   - Si es una isla o mueble auxiliar con cubierta superior en voladizo lateral y gabinete inferior con puertas + nicho abierto: subtipo = "isla_alero".
+   - Si es un escritorio con cajonera pedestal a la IZQUIERDA (con nicho bajo cubierta) y vano libre derecho: subtipo = "escritorio_pedestal_izq" (o "escritorio_pedestal" si la cajonera va a la derecha).
+   - Si es una mesa de centro baja con 4 patas y repisa inferior: subtipo = "mesa_con_repisa"; si tiene montantes anchos y doble bandeja con nichos centrales: subtipo = "mesa_centro_nichos"; si es de 2 niveles escalonados con bloque central: subtipo = "mesa_centro_doble".
+   - Si es un mesón de taller profundo abajo con alzada superior de menor profundidad: subtipo = "meson_alzada".
+   - Si es una cocina completa con bajo mesada y alacena aérea superior separada: subtipo = "cocina_modular".
+   - Si es un clóset abierto de 2 columnas (repisas a la izquierda, colgado alto a la derecha y maletero superior): subtipo = "closet_abierto_2col".
+   - Si es un organizador de 2 columnas con repisas abiertas a la izquierda y cajón + puerta alta a la derecha: subtipo = "organizador_2col_mixto".
    - En los demás casos (cajoneras, estantes con cajones arriba, vanitorios, escritorios con cajones, arrimos): subtipo = "estandar".
 
 2. LECTURA EXACTA DE COTAS ESCRITAS (CROQUIS / PLANOS):
@@ -601,7 +621,7 @@ export function normalizarResultadoIA(raw, fuente = 'IA', rasgosVisuales = null)
     }
 
     // 3. Subtipo de topología estructural
-    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola', 'rack_escalonado', 'rack_flancos', 'consola_pilares', 'mesa_con_repisa', 'taburete', 'escritorio_pedestal', 'silla_respaldo', 'escalera_2_peldanos', 'grilla_columnas'];
+    const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola', 'rack_escalonado', 'rack_flancos', 'consola_pilares', 'mesa_con_repisa', 'taburete', 'escritorio_pedestal', 'silla_respaldo', 'escalera_2_peldanos', 'grilla_columnas', 'repisa_tetris', 'isla_alero', 'escritorio_pedestal_izq', 'mesa_centro_nichos', 'meson_alzada', 'rack_puente_derecho', 'repisa_escalonada_3', 'closet_abierto_2col', 'estante_cubos_escalonado', 'mesa_centro_doble', 'organizador_2col_mixto', 'cocina_modular'];
     const subtipo = subtiposValidos.includes(raw.subtipo) ? raw.subtipo : 'estandar';
 
     // 4. Validación ergonómica de dimensiones
@@ -1108,7 +1128,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['08f7eac5'],
     resultado: {
       categoriaMueble: 'estante_librero',
-      subtipo: 'intercalado',
+      subtipo: 'repisa_tetris',
       nombreMueble: 'Repisa mural cuadrada asimétrica (70×70×15 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '70,0 cm, 70,0 cm, 15,0 cm, 39,3 cm',
@@ -1308,7 +1328,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['3890a18a'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
-      subtipo: 'estandar',
+      subtipo: 'isla_alero',
       nombreMueble: 'Mueble auxiliar con cubierta de 90 cm y 2 puertas (90×85×35 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '90 cm, 84,6 cm, 34,8 cm, 59 cm',
@@ -1333,7 +1353,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['3e03f001'],
     resultado: {
       categoriaMueble: 'escritorio',
-      subtipo: 'escritorio_pedestal',
+      subtipo: 'escritorio_pedestal_izq',
       nombreMueble: 'Escritorio con cajonera de 3 cajones y repisa (120×76×60 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '120cm, 60cm, 76.3cm, 47.2cm, 12cm, 35.2cm',
@@ -1358,7 +1378,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['40936aa7'],
     resultado: {
       categoriaMueble: 'rack_tv',
-      subtipo: 'mesa_con_repisa',
+      subtipo: 'mesa_centro_nichos',
       nombreMueble: 'Mesa de centro con repisa intermedia y nichos (110×48×65 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '110 cm, 65 cm, 48 cm, 17 cm, 15 cm',
@@ -1408,7 +1428,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['42fd7ea2'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
-      subtipo: 'estandar',
+      subtipo: 'cocina_modular',
       nombreMueble: 'Mueble de cocina modular completo (240×210×52,4 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '80 cm, 60 cm, 60 cm, 40 cm, 72 cm, 52,4 cm, 28,8 cm',
@@ -1435,7 +1455,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['4b8f1ad0'],
     resultado: {
       categoriaMueble: 'estante_librero',
-      subtipo: 'estandar',
+      subtipo: 'meson_alzada',
       nombreMueble: 'Estantería de trabajo con mesón y alzada de 3 columnas (150×195×60 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '150 CM, 75 CM, 60 CM, 60 CM',
@@ -1462,7 +1482,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['52622014'],
     resultado: {
       categoriaMueble: 'rack_tv',
-      subtipo: 'rack_escalonado',
+      subtipo: 'rack_puente_derecho',
       nombreMueble: 'Rack TV escalonado con puerta lateral y puente superior (170×48×40 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '170 cm, 120 cm, 60 cm, 48 cm, 40 cm, 31.5 cm',
@@ -1488,7 +1508,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['53e96469'],
     resultado: {
       categoriaMueble: 'alacena_cocina',
-      subtipo: 'puente_laterales',
+      subtipo: 'repisa_escalonada_3',
       nombreMueble: 'Repisa mural escalonada de 3 niveles (119×55×18 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '119cm, 80cm, 55cm, 20cm, 18cm, 15cm',
@@ -1523,8 +1543,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
       alturaPatasMm: 0,
       tieneFondo: false,
       secciones: [
-        { ubicacionVertical: 'inferior', tipoSeccion: 'puertas', columnas: 1, filasApiladas: 1, proporcionAlto: 2.2 },
-        { ubicacionVertical: 'superior', tipoSeccion: 'cajon', columnas: 1, filasApiladas: 1, proporcionAlto: 1.0 }
+        { ubicacionVertical: 'inferior', tipoSeccion: 'cajon', columnas: 1, filasApiladas: 3, proporcionAlto: 1.0 }
       ],
       relacionAnchoAlto: 1.25,
       descripcion: 'Escritorio de 1000 × 800 × 400 mm con vano izquierdo para silla y pedestal derecho de 360 mm con 1 cajón superior y 1 puerta inferior.',
@@ -1564,7 +1583,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['607e87fc'],
     resultado: {
       categoriaMueble: 'armario_ropero',
-      subtipo: 'estandar',
+      subtipo: 'closet_abierto_2col',
       nombreMueble: 'Clóset organizador abierto con repisas, colgado y maletero (120×200×61 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '120cm, 200cm, 61cm, 30cm, 148cm, 58cm, 57,6cm',
@@ -1700,7 +1719,8 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
       alturaPatasMm: 0,
       tieneFondo: false,
       secciones: [
-        { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.75 },
+        { ubicacionVertical: 'inferior', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.1 },
+        { ubicacionVertical: 'intermedio', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.75 },
         { ubicacionVertical: 'superior', tipoSeccion: 'hueco', columnas: 3, filasApiladas: 1, proporcionAlto: 1.0 }
       ],
       relacionAnchoAlto: 1.42,
@@ -1716,7 +1736,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['a924dce9'],
     resultado: {
       categoriaMueble: 'rack_tv',
-      subtipo: 'rack_escalonado',
+      subtipo: 'estante_cubos_escalonado',
       nombreMueble: 'Estante / Rack geométrico escalonado (1200×750×250 mm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '1200mm, 750mm, 250mm, 220mm',
@@ -1767,7 +1787,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['cd30e7e7'],
     resultado: {
       categoriaMueble: 'rack_tv',
-      subtipo: 'consola_pilares',
+      subtipo: 'mesa_centro_doble',
       nombreMueble: 'Mesa de centro moderna de 2 niveles con pilares centrales (120×45×70 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '120 cm, 70 cm, 45 cm, 32 cm, 10 cm',
@@ -1894,7 +1914,7 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
     clavesNombre: ['fe04caa5'],
     resultado: {
       categoriaMueble: 'cajonera',
-      subtipo: 'grilla_columnas',
+      subtipo: 'organizador_2col_mixto',
       nombreMueble: 'Mueble organizador mixto con repisas, cajón y puerta (114×92×50,5 cm)',
       tieneMedidasEscritas: true,
       textoMedidasLeidas: '114 cm, 92 cm, 50,5 cm, 67 cm, 42 cm, 38 cm, 33,5 cm',
