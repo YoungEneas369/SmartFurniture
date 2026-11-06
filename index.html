@@ -7,7 +7,7 @@
   <title>SmartFurniture — Reconocimiento, Despiece y Escalamiento 3D</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/png" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./css/estilos.css?v=19">
+  <link rel="stylesheet" href="./css/estilos.css?v=20">
   <script type="importmap">
   {
     "imports": {
@@ -123,9 +123,19 @@
         <input id="input-proporciones" type="text" value="1, 1, 1">
       </div>
 
-      <h3 style="margin:14px 0 8px;font-size:1rem;color:#38bdf8">
-        🔩 Partes en las que se descompone el mueble (Matriz de despiece M)
-      </h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:14px 0 8px">
+        <h3 style="margin:0;font-size:1rem;color:#38bdf8">
+          🔩 Partes en las que se descompone el mueble (Matriz de despiece M)
+        </h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="btn-exportar-csv" type="button" class="btn-secundario" style="padding:5px 12px;font-size:0.8rem">
+            📥 Exportar CSV (CutList / Excel)
+          </button>
+          <button id="btn-imprimir-ficha" type="button" class="btn-secundario" style="padding:5px 12px;font-size:0.8rem">
+            🖨️ Imprimir / Guardar PDF
+          </button>
+        </div>
+      </div>
       <p class="texto-suave" style="margin-top:0">
         Estas medidas cambian en tiempo real cuando agrandas o achicas el mueble en el Paso 3. El espesor de la melamina (<strong>18 mm</strong>) se mantiene constante.
       </p>
@@ -298,6 +308,6 @@
       });
     }
   </script>
-  <script type="module" src="./js/ui/app.js?v=19"></script>
+  <script type="module" src="./js/ui/app.js?v=20"></script>
 </body>
 </html>

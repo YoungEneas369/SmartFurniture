@@ -6,11 +6,11 @@
  * La interfaz solo llama a `calcularProyecto` y muestra lo que devuelve, así la
  * lógica se puede probar por separado (ver carpeta tests/).
  */
-import { generarMueble } from './plantillas.js?v=19';
-import { matrizDespiece, piezasParaCorte } from './despiece.js?v=19';
-import { optimizarCorte } from './corte.js?v=19';
-import { resumen } from './calculos.js?v=19';
-import { compararForma } from './escala.js?v=19';
+import { generarMueble } from './plantillas.js?v=20';
+import { matrizDespiece, piezasParaCorte } from './despiece.js?v=20';
+import { optimizarCorte } from './corte.js?v=20';
+import { resumen, calcularHerrajesYCostos } from './calculos.js?v=20';
+import { compararForma } from './escala.js?v=20';
 
 export function calcularProyecto(tipo, params, { relacionFoto = null } = {}) {
   const mueble = generarMueble(tipo, params);
@@ -21,6 +21,7 @@ export function calcularProyecto(tipo, params, { relacionFoto = null } = {}) {
     throw new Error(`Estas piezas no caben en una plancha de 2440×1220: ${nombres.join(', ')}.`);
   }
   const totales = resumen(despiece.filas, corte.planchas.length);
+  const herrajes = calcularHerrajesYCostos(despiece, totales, params);
   const forma = compararForma(relacionFoto, params.ancho, params.alto);
   const advertencias = [...mueble.advertencias];
   if (forma?.advertir) {
@@ -29,5 +30,5 @@ export function calcularProyecto(tipo, params, { relacionFoto = null } = {}) {
       + `(${forma.relacionFoto.toFixed(2)}): el mueble se verá más ${forma.deformacion > 1 ? 'ancho' : 'angosto'} que en la foto.`,
     );
   }
-  return { mueble, despiece, corte, totales, forma, advertencias };
+  return { mueble, despiece, corte, totales, herrajes, forma, advertencias };
 }

@@ -10,10 +10,10 @@
  *      en tiempo real las dimensiones del mueble, las medidas de cada pieza,
  *      el modelo 3D y el plano de corte en planchas de 2440×1220 mm.
  */
-import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=19';
-import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=19';
-import { calcularProyecto } from '../core/sistema.js?v=19';
-import { tapacantoPorFila } from '../core/calculos.js?v=19';
+import { ESPESOR, PLANCHA, LIMITES } from '../core/constantes.js?v=20';
+import { parsearProporciones, factorEscala, escalar } from '../core/escala.js?v=20';
+import { calcularProyecto } from '../core/sistema.js?v=20';
+import { tapacantoPorFila } from '../core/calculos.js?v=20';
 import {
   analizarConGemini,
   analizarImagenLocal,
@@ -21,10 +21,10 @@ import {
   prepararImagenParaIA,
   extraerRasgosVisuales,
   CROQUIS_EJEMPLO,
-} from '../ia/analizador.js?v=19';
-import { mapaColoresPorFila } from './colores.js?v=19';
-import { renderizarPlanosCorte } from './planoCorte.js?v=19';
-import { Visor3D } from './visor3d.js?v=19';
+} from '../ia/analizador.js?v=20';
+import { mapaColoresPorFila } from './colores.js?v=20';
+import { renderizarPlanosCorte } from './planoCorte.js?v=20';
+import { Visor3D } from './visor3d.js?v=20';
 
 const CLAVE_API_STORAGE = 'smartfurniture_gemini_api_key';
 
@@ -461,6 +461,64 @@ async function ejecutarAnalisisGemini() {
   }
 }
 
+function renderizarHerrajesYCostos(herrajes, totales) {
+  const cont = $('contenedor-herrajes');
+  if (!cont || !herrajes) return;
+  const clp = (n) => '$' + Math.round(n || 0).toLocaleString('es-CL');
+
+  const chips = (herrajes.items || [])
+    .map(
+      (it) => `
+      <div style="padding:6px 10px;background:#0b1120;border:1px solid #26354d;border-radius:8px;font-size:0.8rem">
+        <strong style="color:#38bdf8">${it.cantidad} ${it.unidad}</strong> · ${it.nombre}
+        <span class="texto-suave">(${clp(it.cantidad * it.costoUnitarioClp)})</span>
+      </div>`,
+    )
+    .join('');
+
+  const c = herrajes.costos || {};
+  cont.innerHTML = `
+    <div style="padding:12px;background:#0f172a;border:1px solid #26354d;border-radius:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <strong style="color:#f1f5f9;font-size:0.9rem">🧰 Quincallería / Herrajes requeridos (BOM) y Costo Estimado</strong>
+        <span style="background:#05966933;border:1px solid #10b981;color:#34d399;padding:3px 10px;border-radius:999px;font-weight:700;font-size:0.85rem">
+          Presupuesto Total Est.: ${clp(c.totalClp)} CLP
+        </span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px;margin-bottom:8px">
+        ${chips}
+      </div>
+      <div style="font-size:0.78rem;color:#94a3b8;display:flex;gap:12px;flex-wrap:wrap">
+        <span>📋 Planchas melamina (${totales?.planchas || 1}): <strong>${clp(c.planchasClp)}</strong></span>
+        ${c.fondoClp ? `<span>📋 Fondo HDF 3 mm: <strong>${clp(c.fondoClp)}</strong></span>` : ''}
+        <span>📏 Tapacanto PVC: <strong>${clp(c.tapacantoClp)}</strong></span>
+        <span>🔩 Kit herrajes: <strong>${clp(c.herrajesClp)}</strong></span>
+      </div>
+    </div>
+  `;
+}
+
+function exportarDespieceCSV() {
+  const filas = estado.ultimoResultado?.despiece?.filas;
+  if (!filas || !filas.length) return;
+  const cab = 'Codigo,Componente,Material,Cantidad,Largo_mm,Ancho_mm,Espesor_mm,Tapacanto_Largo,Tapacanto_Ancho\n';
+  const cuerpo = filas
+    .map(
+      (f) =>
+        `${f.id},"${f.nombre.replace(/"/g, '""')}","${f.material}",${f.cant},${f.largo},${f.ancho},${f.espesor},${f.tapacanto.largo},${f.tapacanto.ancho}`,
+    )
+    .join('\n');
+  const blob = new Blob([cab + cuerpo], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Despiece_${(estado.nombreMueble || 'Mueble').replace(/[^a-zA-Z0-9_-]+/g, '_')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function renderizarTablaDespiece(despiece) {
   const colores = mapaColoresPorFila(despiece.filas);
   const filasHtml = despiece.filas.map((f) => {
@@ -578,6 +636,7 @@ function recalcular() {
     estado.visor.actualizar(resultado.mueble, resultado.despiece, false);
     renderizarPlanosCorte($('contenedor-planos'), resultado.corte, resultado.despiece.filas);
     renderizarTablaDespiece(resultado.despiece);
+    renderizarHerrajesYCostos(resultado.herrajes, resultado.totales);
     renderizarExplicacionMatematica(resultado);
   } catch (err) {
     cajaError.hidden = false;
@@ -672,6 +731,8 @@ function inicializarEventos() {
   $('btn-centrar-3d').addEventListener('click', () => {
     estado.visor.reiniciarCamara();
   });
+  $('btn-exportar-csv')?.addEventListener('click', exportarDespieceCSV);
+  $('btn-imprimir-ficha')?.addEventListener('click', () => window.print());
 }
 
 window.addEventListener('DOMContentLoaded', () => {

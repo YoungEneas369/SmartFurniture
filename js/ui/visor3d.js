@@ -46,7 +46,52 @@ export class Visor3D {
 
       this.grupoMueble = new THREE.Group();
       this.escena.add(this.grupoMueble);
+      this.raycaster = new THREE.Raycaster();
+      this.puntero = new THREE.Vector2();
+      this.mallaSeleccionada = null;
       this.webglDisponible = true;
+
+      // HUD flotante para mostrar medidas al tocar una pieza en 3D
+      this.hud = document.createElement('div');
+      this.hud.style.cssText =
+        'position:absolute;bottom:10px;left:10px;right:10px;padding:7px 11px;background:rgba(15,23,42,0.88);' +
+        'border:1px solid #38bdf8;border-radius:8px;color:#f1f5f9;font-size:0.8rem;pointer-events:none;z-index:5;';
+      this.hud.innerHTML = '👆 <strong>Toca cualquier pieza en el modelo 3D</strong> para inspeccionar su medida de corte y posición ℝ³.';
+      if (getComputedStyle(this.contenedor).position === 'static') {
+        this.contenedor.style.position = 'relative';
+      }
+      this.contenedor.appendChild(this.hud);
+
+      let downX = 0, downY = 0;
+      const dom = this.renderer.domElement;
+      dom.addEventListener('pointerdown', (ev) => {
+        downX = ev.clientX;
+        downY = ev.clientY;
+      });
+      dom.addEventListener('pointerup', (ev) => {
+        if (Math.hypot(ev.clientX - downX, ev.clientY - downY) > 6) return;
+        const rect = dom.getBoundingClientRect();
+        this.puntero.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+        this.puntero.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+        this.raycaster.setFromCamera(this.puntero, this.camara);
+        const mallas = this.grupoMueble.children.filter((c) => c.isMesh && c.userData?.pieza);
+        const hits = this.raycaster.intersectObjects(mallas, false);
+        if (this.mallaSeleccionada?.material?.emissive) {
+          this.mallaSeleccionada.material.emissive.setHex(0x000000);
+        }
+        if (hits.length > 0) {
+          const m = hits[0].object;
+          this.mallaSeleccionada = m;
+          if (m.material?.emissive) m.material.emissive.setHex(0x0284c7);
+          const pz = m.userData.pieza;
+          this.hud.innerHTML =
+            `🔩 <strong>[${pz.idFila}] ${pz.nombre}:</strong> Corte <strong>${pz.largo} × ${pz.ancho} × ${pz.espesor} mm</strong> ` +
+            `· Vector pos ℝ³: (${pz.pos.map((n) => Math.round(n)).join(', ')})`;
+        } else {
+          this.mallaSeleccionada = null;
+          this.hud.innerHTML = '👆 <strong>Toca cualquier pieza en el modelo 3D</strong> para inspeccionar su medida de corte y posición ℝ³.';
+        }
+      });
 
       const animar = () => {
         requestAnimationFrame(animar);
@@ -135,6 +180,7 @@ export class Visor3D {
       });
 
       const malla = new THREE.Mesh(geom, mat);
+      malla.userData.pieza = p;
       malla.position.set(cx + ex, cy + ey, cz + ez);
 
       const bordes = new THREE.LineSegments(
