@@ -1,4 +1,4 @@
-const CACHE_NAME = 'smartfurniture-v1';
+const CACHE_NAME = 'smartfurniture-v3';
 const RECURSOS = [
   './',
   './index.html',
@@ -42,6 +42,12 @@ self.addEventListener('activate', (ev) => {
 self.addEventListener('fetch', (ev) => {
   if (ev.request.method !== 'GET') return;
   ev.respondWith(
-    caches.match(ev.request).then((resp) => resp || fetch(ev.request)),
+    fetch(ev.request)
+      .then((resp) => {
+        const copia = resp.clone();
+        caches.open(CACHE_NAME).then((c) => c.put(ev.request, copia));
+        return resp;
+      })
+      .catch(() => caches.match(ev.request)),
   );
 });

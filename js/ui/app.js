@@ -64,17 +64,25 @@ function aplicarResultadoIA(res) {
   $('input-puertas').value = res.puertas;
   $('input-cajones').value = res.cajones;
   $('input-proporciones').value = (res.proporciones || []).join(', ');
+  if (res.anchoDetectadoMm) $('input-ancho').value = res.anchoDetectadoMm;
+  if (res.altoDetectadoMm) $('input-alto').value = res.altoDetectadoMm;
+  if (res.profundidadDetectadaMm) $('input-profundidad').value = res.profundidadDetectadaMm;
   estado.relacionFoto = res.relacionAnchoAlto || null;
   estado.fuenteImagen = res.fuente || 'Imagen';
+
+  const cotasTxt = res.anchoDetectadoMm || res.altoDetectadoMm || res.profundidadDetectadaMm
+    ? `<div style="margin-top:6px;color:#38bdf8;font-weight:600">📏 Medidas cargadas desde el croquis: ${$('input-ancho').value} × ${$('input-alto').value} × ${$('input-profundidad').value} mm (puedes cambiarlas abajo para escalar a otro espacio)</div>`
+    : '';
 
   const caja = $('resultado-ia');
   caja.hidden = false;
   caja.innerHTML = `
     <div class="ia-cabecera">
       <span class="badge-ia">${res.fuente}</span>
-      <span>Razón ancho/alto en imagen: <strong>${res.relacionAnchoAlto}</strong></span>
+      <span>Tipo: <strong>${res.tipo === 'cajonera' ? `Cajonera (${res.cajones} cajones)` : res.tipo === 'mueble_puertas' ? `Mueble con ${res.puertas} puertas` : `Librero (${res.repisas} repisas)`}</strong></span>
     </div>
-    <p>${res.descripcion}</p>
+    <p style="margin:6px 0 0">${res.descripcion}</p>
+    ${cotasTxt}
   `;
   actualizarVisibilidadCamposTipo();
   recalcular();
@@ -330,6 +338,13 @@ function inicializarEventos() {
       .catch(() => {});
   }
   $('btn-analizar-ia').addEventListener('click', ejecutarAnalisisGemini);
+  $('input-api-key').addEventListener('change', () => {
+    const val = $('input-api-key').value.trim();
+    if (val) {
+      localStorage.setItem(CLAVE_API_STORAGE, val);
+      if (estado.imagenBase64) ejecutarAnalisisGemini();
+    }
+  });
 
   // Cambios de tipo y medidas
   $('select-tipo').addEventListener('change', () => {
