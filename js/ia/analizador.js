@@ -181,6 +181,11 @@ const ESQUEMA_RESPUESTA = {
 const PROMPT_SISTEMA = `Eres un experto ingeniero en diseño de muebles de melamina y visión por computador.
 Analiza la imagen y devuelve el JSON estructurado siguiendo estas reglas:
 
+0. DIFERENCIA CLAVE ENTRE CAJONES ("cajon"), PUERTAS ("puertas") Y REPISAS ABIERTAS ("hueco"):
+   - "cajon": compartimentos cerrados de formato horizontal o pequeño con tirador/pomo central (por ejemplo: 3 cajones pequeños en fila en la parte superior de un estante, 2 cajones bajo la cubierta de un escritorio, o 3-5 cajones apilados en un velador/cajonera).
+   - "puertas": hojas verticales altas (proporcionAlto >= 0.8) con bisagras laterales o dos manillas verticales juntas al centro. NUNCA clasifiques cajones pequeños superiores como "puertas".
+   - "hueco": espacio abierto de repisa sin frente cerrado. Si un nivel abierto tiene divisiones verticales visibles, indica en "columnas" cuántos huecos hay en esa fila (1 a 4).
+
 1. IDENTIFICA LA TOPOLOGÍA (subtipo):
    - Si es una mesa o escritorio simple de 4 patas con cubierta y faldón sin repisas inferiores: subtipo = "mesa".
    - Si es un estante mural con 2 torres verticales a los costados unidas por repisas centrales ("ESTANTE DE PARED"): subtipo = "puente_laterales".
@@ -478,6 +483,16 @@ export function normalizarResultadoIA(raw, fuente = 'IA', rasgosVisuales = null)
       }
     }
     const secciones = expandidas.slice(0, 8);
+
+    if (
+      secciones.length >= 3 &&
+      secciones[secciones.length - 1].tipoSeccion === 'puertas' &&
+      secciones[secciones.length - 1].columnas >= 3 &&
+      secciones[secciones.length - 1].proporcionAlto <= 0.65 &&
+      secciones.slice(0, -1).every((s) => s.tipoSeccion === 'hueco')
+    ) {
+      secciones[secciones.length - 1].tipoSeccion = 'cajon';
+    }
 
     // 3. Subtipo de topología estructural
     const subtiposValidos = ['estandar', 'intercalado', 'mesa', 'puente_laterales', 'flotante_entrelazada', 'gondola'];
@@ -896,43 +911,31 @@ export const CATALOGO_ALBUM_MUEBLES = Object.freeze([
 function buscarCoincidenciaCatalogo(w, h, cuadrantes, nombreArchivo = '') {
   const nom = String(nombreArchivo).toLowerCase();
 
-  // 1. Por nombre de archivo específico (si no es el genérico w=1500)
+  // 1. Por nombre de archivo específico del álbum
   for (const item of CATALOGO_ALBUM_MUEBLES) {
     if (item.clavesNombre.some((c) => nom.includes(c))) {
-      // Si es w=1500, verificar también cuadrantes si están disponibles
       if (nom.includes('fit=cover') && cuadrantes) {
         const dist = item.cuadrantes.reduce((acc, v, i) => acc + Math.abs(v - cuadrantes[i]), 0);
-        if (dist > 45) continue;
+        if (dist > 18) continue;
       }
       return item;
     }
   }
 
-  // 2. Por coincidencia de dimensiones exactas + firma de luminancia de cuadrantes
+  // 2. Coincidencia estricta: misma resolución (w, h) Y firma de cuadrantes casi idéntica (dist <= 10)
+  // Evita que fotos nuevas con fondo blanco coincidan por error con el catálogo local.
   let mejor = null;
   let menorDist = Infinity;
   for (const item of CATALOGO_ALBUM_MUEBLES) {
     const coincideDim = item.dimensionesImg.some(([dw, dh]) => dw === w && dh === h);
-    if (!coincideDim) continue;
-    if (!cuadrantes) return item;
+    if (!coincideDim || !cuadrantes) continue;
     const dist = item.cuadrantes.reduce((acc, v, i) => acc + Math.abs(v - cuadrantes[i]), 0);
     if (dist < menorDist) {
       menorDist = dist;
       mejor = item;
     }
   }
-  if (mejor && menorDist <= 48) return mejor;
-
-  // 3. Por proporción de aspecto idéntica + firma de cuadrantes muy cercana (si Android reescaló la imagen)
-  if (cuadrantes && w > 0 && h > 0) {
-    const ratio = w / h;
-    for (const item of CATALOGO_ALBUM_MUEBLES) {
-      const coincideRatio = item.dimensionesImg.some(([dw, dh]) => Math.abs(dw / dh - ratio) < 0.02);
-      if (!coincideRatio) continue;
-      const dist = item.cuadrantes.reduce((acc, v, i) => acc + Math.abs(v - cuadrantes[i]), 0);
-      if (dist <= 24) return item;
-    }
-  }
+  if (mejor && menorDist <= 10) return mejor;
 
   return null;
 }
