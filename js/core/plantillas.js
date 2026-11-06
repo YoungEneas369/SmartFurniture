@@ -1236,6 +1236,542 @@ function construirGrillaColumnas({
   };
 }
 
+/* ---------------- 9. Mesa de Centro con Repisa Inferior (mesa_con_repisa) ---------------- */
+
+function construirMesaConRepisa({ W, H, D }) {
+  const piezas = [];
+  const hFaldon = Math.min(80, Math.max(45, mm(H * 0.14)));
+  const anchoPata = Math.min(80, Math.max(45, mm(Math.min(W, D) * 0.10)));
+  const hPata = H - e;
+  const yRepisa = Math.max(60, Math.min(H - e - hFaldon - 80, mm(H * 0.28)));
+
+  // 1. Cubierta superior
+  piezas.push(
+    pieza({
+      nombre: 'Cubierta superior',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  // 2. 4 Patas en las esquinas
+  const posicionesPatas = [
+    [0, 0],
+    [W - e, 0],
+    [0, D - anchoPata],
+    [W - e, D - anchoPata],
+  ];
+  for (const [px, pz] of posicionesPatas) {
+    piezas.push(
+      pieza({
+        nombre: 'Pata de esquina',
+        grupo: 'estructura',
+        largo: hPata,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [px, 0, pz],
+        tam: [e, hPata, anchoPata],
+      }),
+    );
+  }
+
+  // 3. Faldones superiores frontales y traseros
+  const largoFaldonX = W - 2 * e;
+  if (largoFaldonX > 80) {
+    piezas.push(
+      pieza({
+        nombre: 'Faldón frontal/trasero',
+        grupo: 'estructura',
+        largo: largoFaldonX,
+        ancho: hFaldon,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [e, H - e - hFaldon, anchoPata],
+        tam: [largoFaldonX, hFaldon, e],
+      }),
+      pieza({
+        nombre: 'Faldón frontal/trasero',
+        grupo: 'estructura',
+        largo: largoFaldonX,
+        ancho: hFaldon,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [e, H - e - hFaldon, D - anchoPata - e],
+        tam: [largoFaldonX, hFaldon, e],
+      }),
+    );
+  }
+
+  // 4. Repisa horizontal inferior entre las 4 patas
+  piezas.push(
+    pieza({
+      nombre: 'Repisa inferior',
+      grupo: 'repisa',
+      largo: W - 2 * e,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [e, yRepisa, 0],
+      tam: [W - 2 * e, e, D],
+    }),
+  );
+
+  const hVano = H - e - (yRepisa + e);
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hVano, espacios: [hVano], fracciones: [1], yBase: yRepisa },
+    advertencias: advertenciasRepisas(W, [hVano], 1),
+    supuestos: [
+      `Mesa de centro de ${W}×${H}×${D} mm con cubierta superior, 4 patas de esquina y repisa inferior a ${yRepisa} mm del suelo.`,
+    ],
+  };
+}
+
+/* ---------------- 10. Taburete / Mesa Multiusos con Travesaños (taburete) ---------------- */
+
+function construirTaburete({ W, H, D }) {
+  const piezas = [];
+  const hFaldon = Math.min(70, Math.max(40, mm(H * 0.11)));
+  const anchoPata = Math.min(65, Math.max(36, mm(Math.min(W, D) * 0.14)));
+  const hPata = H - e;
+  const yTrav = Math.max(80, mm(H * 0.26));
+
+  piezas.push(
+    pieza({
+      nombre: 'Cubierta / Asiento superior',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, D],
+    }),
+  );
+
+  const posicionesPatas = [
+    [0, 0],
+    [W - e, 0],
+    [0, D - anchoPata],
+    [W - e, D - anchoPata],
+  ];
+  for (const [px, pz] of posicionesPatas) {
+    piezas.push(
+      pieza({
+        nombre: 'Pata vertical',
+        grupo: 'estructura',
+        largo: hPata,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [px, 0, pz],
+        tam: [e, hPata, anchoPata],
+      }),
+    );
+  }
+
+  const largoX = W - 2 * e;
+  const largoZ = D - 2 * anchoPata;
+  if (largoX > 50) {
+    piezas.push(
+      pieza({
+        nombre: 'Faldón superior',
+        grupo: 'estructura',
+        largo: largoX,
+        ancho: hFaldon,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [e, H - e - hFaldon, 0],
+        tam: [largoX, hFaldon, e],
+      }),
+      pieza({
+        nombre: 'Faldón superior',
+        grupo: 'estructura',
+        largo: largoX,
+        ancho: hFaldon,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [e, H - e - hFaldon, D - e],
+        tam: [largoX, hFaldon, e],
+      }),
+      pieza({
+        nombre: 'Travesaño apoya-pies',
+        grupo: 'estructura',
+        largo: largoX,
+        ancho: hFaldon,
+        tapacanto: { largo: 2, ancho: 0 },
+        pos: [e, yTrav, 0],
+        tam: [largoX, hFaldon, e],
+      }),
+      pieza({
+        nombre: 'Travesaño apoya-pies',
+        grupo: 'estructura',
+        largo: largoX,
+        ancho: hFaldon,
+        tapacanto: { largo: 2, ancho: 0 },
+        pos: [e, yTrav, D - e],
+        tam: [largoX, hFaldon, e],
+      }),
+    );
+  }
+  if (largoZ > 50) {
+    piezas.push(
+      pieza({
+        nombre: 'Travesaño lateral',
+        grupo: 'estructura',
+        largo: largoZ,
+        ancho: hFaldon,
+        tapacanto: { largo: 2, ancho: 0 },
+        pos: [0, yTrav + hFaldon, anchoPata],
+        tam: [e, hFaldon, largoZ],
+      }),
+      pieza({
+        nombre: 'Travesaño lateral',
+        grupo: 'estructura',
+        largo: largoZ,
+        ancho: hFaldon,
+        tapacanto: { largo: 2, ancho: 0 },
+        pos: [W - e, yTrav + hFaldon, anchoPata],
+        tam: [e, hFaldon, largoZ],
+      }),
+    );
+  }
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hPata, espacios: [hPata], fracciones: [1], yBase: yTrav },
+    advertencias: [],
+    supuestos: [
+      `Taburete / Mesa multiusos de ${W}×${H}×${D} mm con cubierta superior, 4 patas, faldón y travesaños apoya-pies.`,
+    ],
+  };
+}
+
+/* ---------------- 11. Escritorio con Pedestal de Cajones (escritorio_pedestal) ---------------- */
+
+function construirEscritorioPedestal({ W, H, D, secciones = [] }) {
+  const piezas = [];
+  const wPed = Math.max(260, Math.min(W - 350, mm(W * 0.40)));
+  const hCuerpo = H - e;
+  const xPed0 = W - wPed;
+  const wIntPed = wPed - 2 * e;
+
+  // 1. Cubierta superior corrida + Pata lateral izquierda + Faldón trasero de rigidez
+  piezas.push(
+    pieza({
+      nombre: 'Cubierta de escritorio',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, D],
+    }),
+    pieza({
+      nombre: 'Lateral soporte izquierdo',
+      grupo: 'estructura',
+      largo: hCuerpo,
+      ancho: D,
+      tapacanto: { largo: 1, ancho: 2 },
+      pos: [0, 0, 0],
+      tam: [e, hCuerpo, D],
+    }),
+    pieza({
+      nombre: 'Faldón trasero bajo cubierta',
+      grupo: 'estructura',
+      largo: xPed0 - e,
+      ancho: Math.min(180, mm(H * 0.22)),
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [e, H - e - Math.min(180, mm(H * 0.22)), 0],
+      tam: [xPed0 - e, Math.min(180, mm(H * 0.22)), e],
+    }),
+  );
+
+  // 2. Pedestal lateral derecho (2 laterales + base + frentes de cajón/puerta)
+  piezas.push(
+    pieza({
+      nombre: 'Lateral pedestal cajonera',
+      grupo: 'estructura',
+      largo: hCuerpo,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xPed0, 0, 0],
+      tam: [e, hCuerpo, D - e],
+    }),
+    pieza({
+      nombre: 'Lateral pedestal cajonera',
+      grupo: 'estructura',
+      largo: hCuerpo,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [W - e, 0, 0],
+      tam: [e, hCuerpo, D - e],
+    }),
+    pieza({
+      nombre: 'Base inferior pedestal',
+      grupo: 'estructura',
+      largo: wIntPed,
+      ancho: D - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [xPed0 + e, 0, 0],
+      tam: [wIntPed, e, D - e],
+    }),
+  );
+
+  const nCeldas = Math.max(2, Math.min(5, secciones?.length || 4));
+  const hDisp = hCuerpo - e;
+  const hCelda = mm(hDisp / nCeldas);
+  let yCursor = e;
+  for (let i = 0; i < nCeldas; i++) {
+    const hAct = i === nCeldas - 1 ? hCuerpo - yCursor : hCelda;
+    const tipoSec = secciones?.[i]?.tipoSeccion || 'cajon';
+    const nombreFrente = tipoSec === 'puertas' ? 'Puerta pedestal' : 'Frente cajón pedestal';
+    const grupoFrente = tipoSec === 'puertas' ? 'puerta' : 'frente';
+    piezas.push(
+      pieza({
+        nombre: nombreFrente,
+        grupo: grupoFrente,
+        largo: wIntPed + 2 * e - 2 * s,
+        ancho: Math.max(60, hAct - s),
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [xPed0 + s, yCursor, D - e],
+        tam: [wIntPed + 2 * e - 2 * s, Math.max(60, hAct - s), e],
+      }),
+    );
+    yCursor += hAct;
+  }
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: hCuerpo, espacios: [hCuerpo], fracciones: [1], yBase: 0 },
+    advertencias: advertenciasRepisas(W - wPed, [hCuerpo], 1),
+    supuestos: [
+      `Escritorio de ${W}×${H}×${D} mm con vano libre para piernas (${xPed0 - e} mm) y módulo pedestal lateral (${wPed} mm) con ${nCeldas} compartimentos.`,
+    ],
+  };
+}
+
+/* ---------------- 12. Silla / Sillón / Banca con Respaldo (silla_respaldo) ---------------- */
+
+function construirSillaRespaldo({ W, H, D }) {
+  const piezas = [];
+  const yAsiento = Math.max(280, Math.min(H - 220, mm(H * 0.45)));
+  const tieneBrazos = W >= 560;
+  const hBrazo = Math.min(H - e, yAsiento + Math.max(140, mm(H * 0.22)));
+
+  if (tieneBrazos) {
+    // Sillón / Banca con laterales que forman patas + apoyabrazos
+    piezas.push(
+      pieza({
+        nombre: 'Costado / Apoyabrazo lateral',
+        grupo: 'estructura',
+        largo: hBrazo,
+        ancho: D,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [0, 0, 0],
+        tam: [e, hBrazo, D],
+      }),
+      pieza({
+        nombre: 'Costado / Apoyabrazo lateral',
+        grupo: 'estructura',
+        largo: hBrazo,
+        ancho: D,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [W - e, 0, 0],
+        tam: [e, hBrazo, D],
+      }),
+      pieza({
+        nombre: 'Tablero de asiento',
+        grupo: 'estructura',
+        largo: W - 2 * e,
+        ancho: D - e,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [e, yAsiento, e],
+        tam: [W - 2 * e, e, D - e],
+      }),
+      pieza({
+        nombre: 'Faldón bajo asiento',
+        grupo: 'estructura',
+        largo: W - 2 * e,
+        ancho: 70,
+        tapacanto: { largo: 1, ancho: 0 },
+        pos: [e, yAsiento - 70, D - e],
+        tam: [W - 2 * e, 70, e],
+      }),
+      pieza({
+        nombre: 'Respaldo trasero superior',
+        grupo: 'estructura',
+        largo: W - 2 * e,
+        ancho: H - yAsiento,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [e, yAsiento, 0],
+        tam: [W - 2 * e, H - yAsiento, e],
+      }),
+    );
+  } else {
+    // Silla de comedor: 2 montantes traseros hasta H, 2 patas delanteras hasta yAsiento, asiento y respaldo
+    const anchoPata = Math.max(40, mm(D * 0.12));
+    piezas.push(
+      pieza({
+        nombre: 'Montante trasero largo',
+        grupo: 'estructura',
+        largo: H,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [0, 0, 0],
+        tam: [e, H, anchoPata],
+      }),
+      pieza({
+        nombre: 'Montante trasero largo',
+        grupo: 'estructura',
+        largo: H,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [W - e, 0, 0],
+        tam: [e, H, anchoPata],
+      }),
+      pieza({
+        nombre: 'Pata delantera',
+        grupo: 'estructura',
+        largo: yAsiento,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [0, 0, D - anchoPata],
+        tam: [e, yAsiento, anchoPata],
+      }),
+      pieza({
+        nombre: 'Pata delantera',
+        grupo: 'estructura',
+        largo: yAsiento,
+        ancho: anchoPata,
+        tapacanto: { largo: 2, ancho: 1 },
+        pos: [W - e, 0, D - anchoPata],
+        tam: [e, yAsiento, anchoPata],
+      }),
+      pieza({
+        nombre: 'Tablero de asiento',
+        grupo: 'estructura',
+        largo: W,
+        ancho: D - anchoPata,
+        tapacanto: { largo: 2, ancho: 2 },
+        pos: [0, yAsiento, anchoPata],
+        tam: [W, e, D - anchoPata],
+      }),
+      pieza({
+        nombre: 'Respaldo superior',
+        grupo: 'estructura',
+        largo: W - 2 * e,
+        ancho: Math.max(120, mm((H - yAsiento) * 0.45)),
+        tapacanto: { largo: 2, ancho: 0 },
+        pos: [e, H - Math.max(120, mm((H - yAsiento) * 0.45)), 0],
+        tam: [W - 2 * e, Math.max(120, mm((H - yAsiento) * 0.45)), e],
+      }),
+    );
+  }
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: H - yAsiento, espacios: [H - yAsiento], fracciones: [1], yBase: yAsiento },
+    advertencias: [],
+    supuestos: [
+      `Asiento / Silla con respaldo de ${W}×${H}×${D} mm (altura de asiento a ${yAsiento} mm del suelo).`,
+    ],
+  };
+}
+
+/* ---------------- 13. Escalera / Banqueta de 2 Peldaños (escalera_2_peldanos) ---------------- */
+
+function construirEscaleraPeldanos({ W, H, D }) {
+  const piezas = [];
+  const hPeldano1 = mm(H / 2);
+  const dHuella = mm(D / 2);
+  const interior = W - 2 * e;
+
+  piezas.push(
+    // 2 Costados traseros altos + 2 Costados delanteros bajos (forman el perfil escalonado sin colisiones)
+    pieza({
+      nombre: 'Lateral tramo alto (trasero)',
+      grupo: 'estructura',
+      largo: H - e,
+      ancho: dHuella,
+      tapacanto: { largo: 2, ancho: 1 },
+      pos: [0, 0, 0],
+      tam: [e, H - e, dHuella],
+    }),
+    pieza({
+      nombre: 'Lateral tramo alto (trasero)',
+      grupo: 'estructura',
+      largo: H - e,
+      ancho: dHuella,
+      tapacanto: { largo: 2, ancho: 1 },
+      pos: [W - e, 0, 0],
+      tam: [e, H - e, dHuella],
+    }),
+    pieza({
+      nombre: 'Lateral tramo bajo (delantero)',
+      grupo: 'estructura',
+      largo: hPeldano1 - e,
+      ancho: D - dHuella,
+      tapacanto: { largo: 2, ancho: 1 },
+      pos: [0, 0, dHuella],
+      tam: [e, hPeldano1 - e, D - dHuella],
+    }),
+    pieza({
+      nombre: 'Lateral tramo bajo (delantero)',
+      grupo: 'estructura',
+      largo: hPeldano1 - e,
+      ancho: D - dHuella,
+      tapacanto: { largo: 2, ancho: 1 },
+      pos: [W - e, 0, dHuella],
+      tam: [e, hPeldano1 - e, D - dHuella],
+    }),
+    // Peldaño inferior (delantero) y Peldaño superior (trasero)
+    pieza({
+      nombre: 'Huella peldaño inferior',
+      grupo: 'estructura',
+      largo: W,
+      ancho: D - dHuella,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, hPeldano1 - e, dHuella],
+      tam: [W, e, D - dHuella],
+    }),
+    pieza({
+      nombre: 'Huella peldaño superior',
+      grupo: 'estructura',
+      largo: W,
+      ancho: dHuella,
+      tapacanto: { largo: 2, ancho: 2 },
+      pos: [0, H - e, 0],
+      tam: [W, e, dHuella],
+    }),
+    // Contrahuellas de refuerzo
+    pieza({
+      nombre: 'Contrahuella inferior',
+      grupo: 'estructura',
+      largo: interior,
+      ancho: hPeldano1 - e,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [e, 0, D - e],
+      tam: [interior, hPeldano1 - e, e],
+    }),
+    pieza({
+      nombre: 'Contrahuella superior',
+      grupo: 'estructura',
+      largo: interior,
+      ancho: H - e - hPeldano1,
+      tapacanto: { largo: 1, ancho: 0 },
+      pos: [e, hPeldano1, dHuella - e],
+      tam: [interior, H - e - hPeldano1, e],
+    }),
+  );
+
+  return {
+    piezas,
+    detalle: { p: D, hLibre: H, espacios: [hPeldano1, H - hPeldano1], fracciones: [0.5, 0.5], yBase: 0 },
+    advertencias: [],
+    supuestos: [
+      `Escalera / Banqueta de 2 peldaños (${W}×${H}×${D} mm): primer peldaño a ${hPeldano1} mm y segundo peldaño a ${H} mm.`,
+    ],
+  };
+}
+
 /* ---------------- Constructor Modular General ---------------- */
 
 function modular({
@@ -1254,6 +1790,11 @@ function modular({
   if (subtipo === 'rack_escalonado') return construirRackEscalonado({ W, H, D });
   if (subtipo === 'rack_flancos') return construirRackFlancos({ W, H, D });
   if (subtipo === 'consola_pilares') return construirConsolaPilares({ W, H, D });
+  if (subtipo === 'mesa_con_repisa') return construirMesaConRepisa({ W, H, D });
+  if (subtipo === 'taburete') return construirTaburete({ W, H, D });
+  if (subtipo === 'escritorio_pedestal') return construirEscritorioPedestal({ W, H, D, secciones });
+  if (subtipo === 'silla_respaldo') return construirSillaRespaldo({ W, H, D });
+  if (subtipo === 'escalera_2_peldanos') return construirEscaleraPeldanos({ W, H, D });
   if (subtipo === 'grilla_columnas' || (Array.isArray(secciones?.columnasDetalle) && secciones.columnasDetalle.length > 0)) {
     return construirGrillaColumnas({
       W, H, D,
